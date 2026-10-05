@@ -1,0 +1,62 @@
+name: Deploy (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # A URL e a chave "anon" do Supabase NÃO ficam no repositório: entram aqui, a partir das
+      # variáveis do repo (Settings > Secrets and variables > Actions > Variables).
+      - name: Gerar js/config.js
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_ANON_KEY" || { echo "::error::Defina as variáveis SUPABASE_URL e SUPABASE_ANON_KEY no repositório."; exit 1; }
+          case "$SUPABASE_ANON_KEY" in *service_role*) echo "::error::Chave service_role no front-end é proibido."; exit 1;; esac
+          node -e '
+            const c = { supabaseUrl: process.env.SUPABASE_URL.trim(), supabaseAnonKey: process.env.SUPABASE_ANON_KEY.trim(), brapiToken: "" };
+            const p = JSON.parse(Buffer.from(c.supabaseAnonKey.split(".")[1] || "e30", "base64url").toString());
+            if (p.role && p.role !== "anon") { console.error("::error::A chave informada tem role=" + p.role + " (use a anon public)."); process.exit(1); }
+            require("fs").writeFileSync("js/config.js", "export const CONFIG = " + JSON.stringify(c, null, 2) + ";\n");
+          '
+
+      - name: Montar site (somente arquivos públicos)
+        run: |
+          mkdir _site
+          cp -r index.html app.css sw.js manifest.webmanifest icon.svg ds js vendor _site/
+          rm -f _site/js/config.example.js _site/js/seed.js.map
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+      - id: deployment
+        uses: actions/deploy-pages@v4

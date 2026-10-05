@@ -1,0 +1,12 @@
+{
+  "name": "LookTheMoney",
+  "short_name": "LookTheMoney",
+  "description": "Controle financeiro e de investimentos",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#161826",
+  "theme_color": "#161826",
+  "lang": "pt-BR",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

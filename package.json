@@ -1,0 +1,11 @@
+{
+  "name": "lookthemoney",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LookTheMoney — controle financeiro e de investimentos",
+  "scripts": {
+    "start": "node serve.mjs",
+    "test": "node --test tests/calc.test.js"
+  }
+}
