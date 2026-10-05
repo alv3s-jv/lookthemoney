@@ -52,7 +52,7 @@ export function buyForm({ ticker = '', type = 'COMPRA', tx = null } = {}) {
       ${field('Taxas / corretagem (R$)', `<input class="input num-in" name="fees" inputmode="decimal" value="${tx ? nf(tx.fees || 0) : '0,00'}">`)}
       <div class="field" id="curWrap"><label>Moeda</label><select class="input" name="currency"><option value="BRL">R$ (BRL)</option><option value="USD">US$ (USD)</option></select></div>
       <div class="field" id="fxWrap" style="display:none"><label>Câmbio (R$ por US$)</label><input class="input num-in" name="fx" inputmode="decimal" value="${tx?.fx ? nf(tx.fx, 4) : fxNow ? nf(fxNow, 4) : ''}"></div>
-      ${field('Debitar da conta', `<select class="input" name="accountId"><option value="">— não lançar nas Finanças —</option>${options(c.accounts.map(a => [a.id, a.name]), accDefault)}</select>`, { hint: 'A compra entra como saída na conta e conta como aporte do mês no orçamento.', cls: 'span2' })}
+      ${field('Debitar da conta', `<select class="input" name="accountId"><option value="">— não lançar nas Finanças —</option>${options(c.accounts.map(a => [a.id, a.name]), accDefault)}</select>`, { hint: 'A compra entra como saída na <b>sua</b> conta (a outra pessoa não vê) e conta como seu aporte do mês; a operação em si é compartilhada.', cls: 'span2' })}
     </div>
     <div class="preview" id="pv" style="display:none"></div>
     <div id="bErr"></div></form>`;

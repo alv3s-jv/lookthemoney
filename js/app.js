@@ -6,6 +6,8 @@ import { makeCdi, CLASS_ORDER, monthsDiff } from './calc.js';
 import { refreshQuotes, getCdi, getIpca, fetchHistory, hasLiveSource } from './quotes.js';
 import { CONFIG } from './config.js';
 
+export const memberAvatar = id => { const a = (app.members || []).find(m => m.userId === id)?.avatar || ''; return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(a) ? a : ''; };
+export const memberName = id => (app.members || []).find(m => m.userId === id)?.name || '';
 export const app = {
   env: 'fin', route: 'overview', ym: currentYM(), cloud: false,
   user: null, adapter: null, period: '12M', booted: false,

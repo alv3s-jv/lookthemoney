@@ -6,14 +6,16 @@
 export const TABLES = {
   accounts: 'accounts', cards: 'cards', transactions: 'transactions', bills: 'bills', billPayments: 'bill_payments',
   budgetPlans: 'budget_plans', goals: 'goals', assets: 'assets', investTx: 'invest_tx', dividends: 'dividends',
-  targets: 'targets', snapshots: 'snapshots', settings: 'settings',
+  targets: 'targets', snapshots: 'snapshots', settings: 'settings', sharedSettings: 'household_settings',
 };
+// Dados compartilhados entre os usuários do domicílio (no Supabase: household_id; o resto é por user_id)
+export const SHARED = new Set(['assets', 'investTx', 'dividends', 'targets', 'snapshots', 'sharedSettings']);
 export const TABLE_KEYS = Object.keys(TABLES);
 
 const snake = s => s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
 const camel = s => s.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
-const toDb = (row, userId) => { const o = {}; for (const [k, v] of Object.entries(row)) if (v !== undefined) o[snake(k)] = v; if (userId) o.user_id = userId; return o; };
-const fromDb = row => { const o = {}; for (const [k, v] of Object.entries(row)) { if (k === 'user_id') continue; o[camel(k)] = v; } return o; };
+const toDb = (row, userId, shared) => { const o = {}; for (const [k, v] of Object.entries(row)) if (v !== undefined) o[snake(k)] = v; if (shared) delete o.household_id; else if (userId) o.user_id = userId; return o; };
+const fromDb = row => { const o = {}; for (const [k, v] of Object.entries(row)) { if (k === 'user_id' || k === 'household_id') continue; o[camel(k)] = v; } return o; };
 // numeric do Postgres chega como string em alguns casos; normaliza campos numéricos conhecidos
 const NUMERIC = new Set(['initialBalance', 'creditLimit', 'amount', 'planned', 'saved', 'target', 'monthly', 'manualPrice', 'quantity', 'price', 'fees', 'perShare', 'percent', 'value', 'netFlow', 'income', 'closeDay', 'dueDay', 'installmentNo', 'installmentTotal', 'installments']);
 const normalize = row => { for (const k of NUMERIC) if (k in row && row[k] != null && typeof row[k] === 'string') row[k] = Number(row[k]); return row; };
@@ -25,7 +27,7 @@ export class LocalAdapter {
   constructor(name = 'lookthemoney') { this.name = name; this.mode = 'local'; this.db = null; }
   async init() {
     this.db = await new Promise((res, rej) => {
-      const r = indexedDB.open(this.name, 1);
+      const r = indexedDB.open(this.name, 2);
       r.onupgradeneeded = () => { for (const t of TABLE_KEYS) if (!r.result.objectStoreNames.contains(t)) r.result.createObjectStore(t, { keyPath: 'id' }); };
       r.onsuccess = () => res(r.result);
       r.onerror = () => rej(r.error);
@@ -52,7 +54,7 @@ export class LocalAdapter {
   }
   upsertMany(table, rows) { return this._tx(table, 'readwrite', t => rows.forEach(r => t.objectStore(table).put(r))); }
   removeMany(table, ids) { return this._tx(table, 'readwrite', t => ids.forEach(id => t.objectStore(table).delete(id))); }
-  clearAll() { return this._tx(TABLE_KEYS, 'readwrite', t => TABLE_KEYS.forEach(k => t.objectStore(k).clear())); }
+  clearAll({ shared = true } = {}) { const ks = TABLE_KEYS.filter(k => shared || !SHARED.has(k)); return this._tx(ks, 'readwrite', t => ks.forEach(k => t.objectStore(k).clear())); }
   async user() { return { id: 'local', email: 'Modo local (este navegador)' }; }
 }
 
@@ -134,8 +136,8 @@ export class SupabaseAdapter {
   }
   async upsertMany(table, rows) {
     for (let i = 0; i < rows.length; i += 400) {
-      const chunk = rows.slice(i, i + 400).map(r => toDb(r, this.userId));
-      const { error } = await this.sb.from(TABLES[table]).upsert(chunk, { onConflict: 'user_id,id' });
+      const chunk = rows.slice(i, i + 400).map(r => toDb(r, this.userId, SHARED.has(table)));
+      const { error } = await this.sb.from(TABLES[table]).upsert(chunk, { onConflict: SHARED.has(table) ? 'household_id,id' : 'user_id,id' });
       if (error) throw new Error(`${TABLES[table]}: ${error.message}`);
     }
   }
@@ -145,7 +147,24 @@ export class SupabaseAdapter {
       if (error) throw new Error(`${TABLES[table]}: ${error.message}`);
     }
   }
-  async clearAll() {
-    for (const k of TABLE_KEYS) { const { error } = await this.sb.from(TABLES[k]).delete().not('id', 'is', null); if (error) throw new Error(error.message); }
+  async clearAll({ shared = false } = {}) {
+    for (const k of TABLE_KEYS) {
+      if (SHARED.has(k) && !shared) continue;
+      const { error } = await this.sb.from(TABLES[k]).delete().not('id', 'is', null); if (error) throw new Error(error.message);
+    }
+  }
+  // membros do domicílio (nomes exibidos nas operações compartilhadas)
+  async members() {
+    const { data, error } = await this.sb.from('household_members').select('user_id, display_name, avatar');
+    if (error) throw new Error(error.message);
+    return data.map(r => ({ userId: r.user_id, name: r.display_name, avatar: r.avatar || '' }));
+  }
+  async setAvatar(dataUrl) {
+    const { error } = await this.sb.from('household_members').update({ avatar: dataUrl || null }).eq('user_id', this.userId);
+    if (error) throw new Error(error.message);
+  }
+  async renameMe(name) {
+    const { error } = await this.sb.from('household_members').update({ display_name: name }).eq('user_id', this.userId);
+    if (error) throw new Error(error.message);
   }
 }

@@ -1,5 +1,7 @@
 // Estado em memória + persistência via adaptador. Todas as telas leem daqui.
-import { TABLE_KEYS } from './db.js';
+import { TABLE_KEYS, SHARED } from './db.js';
+// configurações compartilhadas entre os usuários (as demais são pessoais)
+const SHARED_SETTINGS = new Set(['brapiToken', 'tolerance']);
 import { uid } from './util.js';
 
 class Store {
@@ -56,15 +58,23 @@ class Store {
   }
 
   // ---- configurações (tabela settings: id = chave) ----
-  setting(key, def = null) { const r = this.find('settings', key); return r && r.value !== undefined && r.value !== null ? r.value : def; }
-  setSetting(key, value) { return this.put('settings', { id: key, value }); }
+  setting(key, def = null) {
+    const shared = SHARED_SETTINGS.has(key);
+    const r = this.find(shared ? 'sharedSettings' : 'settings', key) || (shared ? this.find('settings', key) : null); // fallback: dados locais antigos
+    return r && r.value !== undefined && r.value !== null ? r.value : def;
+  }
+  setSetting(key, value) { return this.put(SHARED_SETTINGS.has(key) ? 'sharedSettings' : 'settings', { id: key, value }); }
 
-  async wipe() { await this.adapter.clearAll(); this.replaceAll({}); }
+  // shared=false (padrão na nuvem): apaga só os dados pessoais e preserva os investimentos compartilhados
+  async wipe({ shared = true } = {}) {
+    await this.adapter.clearAll({ shared });
+    this.replaceAll(shared ? {} : Object.fromEntries([...SHARED].map(k => [k, this.data[k]])));
+  }
   exportJSON() { return JSON.stringify({ app: 'lookthemoney', version: 1, exportedAt: new Date().toISOString(), data: this.data }, null, 1); }
   async importJSON(text, { replace = false } = {}) {
     const j = JSON.parse(text);
     if (j.app !== 'lookthemoney' || !j.data) throw new Error('Arquivo não reconhecido.');
-    if (replace) await this.wipe();
+    if (replace) await this.wipe({ shared: true });
     for (const k of TABLE_KEYS) if (j.data[k]?.length) await this.putMany(k, j.data[k], { silent: true });
     this.emit();
   }

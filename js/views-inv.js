@@ -1,6 +1,6 @@
 // Telas do módulo Investimentos.
 import { store } from './store.js';
-import { app, getCtx, refreshAll, ensureSnapshots } from './app.js';
+import { app, memberName, getCtx, refreshAll, ensureSnapshots } from './app.js';
 import {
   money, smoney, pct, pctPlain, num, qtyFmt, gain, gainMoney, gainPct, col, arrow, kpi, tag, progress, empty, donut, perfChart, stackedBars, lotChart, icon, esc,
   openModal, toast, confirmDialog, options, field, formData, errBox, ui,
@@ -150,7 +150,7 @@ export const ativo = {
         if (rf) res = fixedIncomeValue(+t.quantity * +t.price, t.date, c.today, a.fixedIncome || { indexer: 'CDI', rate: 100 }, c.cdi, c.ipca) - +t.quantity * +t.price - (+t.fees || 0);
         else if (h.price != null) res = +t.quantity * (h.price * h.fx - +t.price * fx) - (+t.fees || 0);
       } else res = (+t.price * fx - pmAt(t.id)) * +t.quantity - (+t.fees || 0);
-      return `<tr><td>${fmtDate(t.date)}</td><td>${t.type === 'COMPRA' ? `<span class="tag tag-accent">L${idx}</span> compra` : '<span class="tag tag-neutral">venda</span>'}</td><td class="r num">${qtyFmt(t.quantity)}${rf ? '' : ''}</td><td class="r num">${rf ? '—' : (usd ? 'US$ ' + nf(t.price) : money(t.price))}</td><td class="r num">${money(t.fees || 0)}</td><td class="r num">${res == null ? '—' : gainMoney(res, 2)}</td><td class="r"><button class="iconbtn" data-act="edit-lot" data-id="${t.id}" aria-label="Editar"><i class="ph ph-pencil-simple"></i></button><button class="iconbtn del" data-act="del-lot" data-id="${t.id}" aria-label="Excluir"><i class="ph ph-trash"></i></button></td></tr>`;
+      return `<tr><td>${fmtDate(t.date)}</td><td>${t.type === 'COMPRA' ? `<span class="tag tag-accent">L${idx}</span> compra` : '<span class="tag tag-neutral">venda</span>'}${t.createdBy && app.cloud && t.createdBy !== app.user?.id && memberName(t.createdBy) ? `<div class="sub-s">por ${esc(memberName(t.createdBy))}</div>` : ''}</td><td class="r num">${qtyFmt(t.quantity)}${rf ? '' : ''}</td><td class="r num">${rf ? '—' : (usd ? 'US$ ' + nf(t.price) : money(t.price))}</td><td class="r num">${money(t.fees || 0)}</td><td class="r num">${res == null ? '—' : gainMoney(res, 2)}</td><td class="r"><button class="iconbtn" data-act="edit-lot" data-id="${t.id}" aria-label="Editar"><i class="ph ph-pencil-simple"></i></button><button class="iconbtn del" data-act="del-lot" data-id="${t.id}" aria-label="Excluir"><i class="ph ph-trash"></i></button></td></tr>`;
     }).join('');
     const fi = a.fixedIncome;
     return `${invHead(c, `<a href="#/inv/posicoes" class="iconbtn" style="vertical-align:middle;margin-right:4px" aria-label="Voltar"><i class="ph ph-arrow-left"></i></a>${esc(a.ticker)}`, `${esc(a.name)} · ${CLASSES[a.assetClass]}${fi ? ` · ${INDEXERS[fi.indexer]} ${nf(fi.rate, 1)}${fi.maturity ? ' · vence ' + fmtDate(fi.maturity) : ''}` : ''}`, `<button class="btn btn-secondary" data-act="edit-asset" data-id="${a.id}"><i class="ph ph-pencil-simple"></i> Editar ativo</button><button class="btn btn-secondary" data-act="sell" data-t="${esc(a.ticker)}">Vender</button>`)}

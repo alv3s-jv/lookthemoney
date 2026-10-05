@@ -2,7 +2,7 @@
 import { CONFIG } from './config.js';
 import { LocalAdapter, SupabaseAdapter } from './db.js';
 import { store } from './store.js';
-import { app, getCtx, ensureRecurring, refreshAll } from './app.js';
+import { app, memberAvatar, getCtx, ensureRecurring, refreshAll } from './app.js';
 import { ui, toggleHidden, toast, bindCharts, openModal, esc } from './ui.js';
 import { addMonthsYM, todayISO } from './util.js';
 import { billsForMonth } from './calc.js';
@@ -47,7 +47,7 @@ function shell(c) {
     <nav class="navlist" aria-label="Navegação"><span class="navlist-t">${env === 'inv' ? 'Investimentos' : 'Controle financeiro'}</span>${nav.map(([k, l, i]) => `<a class="navitem ${k === cur && app.route !== 'config' ? 'on' : ''}" href="#/${env}/${k}" ${k === cur && app.route !== 'config' ? 'aria-current="page"' : ''}><i class="${i}"></i><span>${l}</span>${env === 'fin' && k === 'bills' && badge ? `<span class="badge">${badge}</span>` : ''}</a>`).join('')}</nav>
     <div class="side-foot"><button class="navitem" data-act="toggle-hidden" title="${ui.hidden ? 'Mostrar valores' : 'Ocultar valores'}"><i class="ph ph-eye${ui.hidden ? '-slash' : ''}"></i><span>${ui.hidden ? 'Mostrar valores' : 'Ocultar valores'}</span></button>
       <a class="navitem ${app.route === 'config' ? 'on' : ''}" href="#/config"><i class="ph ph-gear"></i><span>Configurações</span></a>
-      <div class="me"><div class="avatar">${initials}</div><div class="me-t"><span>${app.cloud ? 'Minha conta' : 'Modo local'}</span><span>${esc(app.cloud ? app.user?.email || '' : 'dados neste navegador')}</span></div></div></div>`;
+      <div class="me"><div class="avatar">${(app.cloud && memberAvatar(app.user?.id)) ? `<img src="${memberAvatar(app.user.id)}" alt="">` : initials}</div><div class="me-t"><span>${app.cloud ? 'Minha conta' : 'Modo local'}</span><span>${esc(app.cloud ? app.user?.email || '' : 'dados neste navegador')}</span></div></div></div>`;
   document.getElementById('mtop').innerHTML = `${envSw}<button class="iconbtn" data-act="toggle-hidden" aria-label="${ui.hidden ? 'Mostrar valores' : 'Ocultar valores'}"><i class="ph ph-eye${ui.hidden ? '-slash' : ''}" style="font-size:20px"></i></button>`;
   const tabs = env === 'inv'
     ? [['resumo', 'Resumo', 'ph ph-squares-four'], ['posicoes', 'Posições', 'ph ph-wallet'], ['__buy', 'Comprar', 'ph ph-plus', 1], ['proventos', 'Proventos', 'ph ph-coins'], ['__more', 'Mais', 'ph ph-dots-three-outline']]
@@ -123,6 +123,7 @@ async function startApp(adapter) {
   root.innerHTML = '<div class="app"><aside class="side" id="side"></aside><div class="main"><div class="mtop" id="mtop"></div><main class="page" id="view" tabindex="-1" aria-live="polite"></main></div></div><nav class="tabbar" id="tabbar" aria-label="Navegação"></nav>';
   store.onError = e => toast('Não foi possível salvar: ' + e.message, { kind: 'error', ms: 6000 });
   await store.load(adapter);
+  app.members = app.cloud ? await adapter.members().catch(() => []) : [];
   await ensureRecurring();
   store.subscribe(scheduleRender);
   document.addEventListener('click', onClick); document.addEventListener('input', onInput); document.addEventListener('change', onChange); document.addEventListener('keydown', onKey);

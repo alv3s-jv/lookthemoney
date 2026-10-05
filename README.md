@@ -30,7 +30,7 @@ Arquitetura: o **código** fica no GitHub (público ou privado, sem nenhum dado)
    ```sql
    insert into public.allowed_emails(email) values ('seu-email@exemplo.com');
    ```
-   Use o e-mail em minúsculas. Para uma segunda pessoa (ex.: cônjuge), repita o comando com o e-mail dela; cada uma enxerga só os próprios dados.
+   Use o e-mail em minúsculas e repita o comando para a segunda pessoa (limite de 2 usuários). Modelo de dados: **finanças são privadas** (cada um vê só as suas) e **investimentos são compartilhados** (carteira, operações, proventos, metas de alocação e histórico únicos para os dois; cada operação registra quem a lançou e ambos podem editar/apagar).
 4. **Authentication → Sign In / Providers → Email**: mantenha *Confirm email* ligado. Em **Password**, exija senha forte (mín. 12) e ligue *Leaked password protection* (se disponível no seu plano).
 5. **Authentication → URL Configuration**: *Site URL* = `https://SEU-USUARIO.github.io/NOME-DO-REPO/` e a mesma URL em *Redirect URLs*.
 6. **Project Settings → API**: copie *Project URL* e a chave **anon / publishable**. Nunca a `service_role`.
@@ -49,8 +49,10 @@ git init -b main
 git add .
 git commit -m "LookTheMoney"
 git remote add origin https://github.com/SEU-USUARIO/NOME-DO-REPO.git
-git push -u origin main
+git push -u origin main --force
 ```
+
+(`--force` só é necessário se o repositório já tiver um commit inicial/README criado pelo GitHub; ele será substituído pelo projeto.)
 
 No GitHub, no repositório:
 
@@ -66,7 +68,7 @@ Se o deploy falhar, a mensagem no Actions diz o motivo (variável ausente, chave
 
 | Camada | O que faz |
 |---|---|
-| RLS + `force` | Cada linha tem `user_id = auth.uid()`; ninguém lê/escreve dado alheio. Privilégios mínimos (sem TRUNCATE; `anon` sem acesso). |
+| RLS + `force` | Finanças: `user_id = auth.uid()`. Investimentos: `household_id = my_household()` (só os 2 membros). Privilégios mínimos (sem TRUNCATE; `anon` sem acesso). |
 | Cadastro fechado | Gatilho em `auth.users` só aceita e-mails da tabela `allowed_emails` (inacessível pela API). |
 | 2FA (TOTP) | Com fator ativo, a política de RLS exige sessão `aal2`: mesmo senha vazada + token roubado em aal1 não leem nada. |
 | Sem segredos no repo | Chave anon injetada no deploy; `service_role` nunca no front-end (o deploy recusa). |
@@ -94,6 +96,7 @@ Se uma API falhar, o app usa o último valor em cache (marcado como desatualizad
 - **"R$ a mais que o CDI"** é ponderado por dinheiro (cada aporte vs 100% do CDI) e pode divergir do "% do CDI" (ponderado por tempo) quando grandes aportes antecedem períodos fracos.
 - **Saldo das contas:** compras no cartão só reduzem o saldo quando você **paga a fatura** (Contas a pagar → marcar paga).
 - **Contas a pagar × lançamentos recorrentes:** use um dos dois para a mesma despesa, senão ela conta em dobro no orçamento.
+- **Aporte em conta:** o débito na conta é um lançamento *privado* de quem registrou a compra; o parceiro vê a operação, mas não esse débito. "Apagar tudo" preserva os investimentos compartilhados, a menos que se marque a opção explícita.
 - **Sem:** importação OFX, categorias personalizadas, cálculo de IR de ações (isenção R$ 20 mil/mês, DARF), marcação a mercado de renda fixa.
 
 ## Segurança
@@ -110,6 +113,6 @@ js/calc.js                      cálculos puros (testados)
 js/portfolio.js, quotes.js      carteira, snapshots, cotações
 js/db.js, store.js              Local (IndexedDB) e Supabase
 js/views-*.js, forms-*.js       telas e formulários
-supabase/schema.sql             tabelas + RLS
-tests/calc.test.js              testes unitários
+supabase/schema.sql             tabelas, RLS, domicílio (2 usuários)
+tests/                          testes (cálculos e adaptador)
 ```

@@ -1,6 +1,6 @@
 // Configurações e tela de login.
 import { store } from './store.js';
-import { app, getCtx, brapiToken, refreshAll } from './app.js';
+import { app, memberName, memberAvatar, getCtx, brapiToken, refreshAll } from './app.js';
 import { openModal, toast, confirmDialog, esc, money, options, field, errBox } from './ui.js';
 import { head } from './views-fin.js';
 import { accountForm } from './forms-fin.js';
@@ -13,7 +13,7 @@ import { TABLE_KEYS } from './db.js';
 
 export async function loadDemo() {
   const has = store.get('transactions').length || store.get('assets').length;
-  if (has && !(await confirmDialog({ title: 'Carregar dados de exemplo', message: 'Já existem dados nesta conta. Os dados de exemplo serão <b>adicionados</b> aos seus. Para uma conta limpa, prefira o modo local de demonstração.', confirm: 'Adicionar mesmo assim', danger: false }))) return;
+  if (has && !(await confirmDialog({ title: 'Carregar dados de exemplo', message: 'Já existem dados nesta conta. Os dados de exemplo serão <b>adicionados</b> aos seus' + (app.cloud ? ' (e os investimentos de exemplo ficam visíveis para a outra pessoa do domicílio)' : '') + '. Para uma conta limpa, prefira o modo local de demonstração.', confirm: 'Adicionar mesmo assim', danger: false }))) return;
   const D = buildSeed();
   for (const k of TABLE_KEYS) if (D[k]?.length) await store.putMany(k, D[k], { silent: true });
   store.emit();
@@ -41,7 +41,7 @@ export const config = {
       <div class="row wrap"><button class="btn btn-secondary" data-act="export"><i class="ph ph-download-simple"></i> Exportar dados (JSON)</button><label class="btn btn-secondary" style="cursor:pointer"><i class="ph ph-upload-simple"></i> Importar backup<input type="file" id="impjson" accept="application/json,.json" hidden></label><button class="btn btn-secondary" data-act="load-demo">Carregar dados de exemplo</button><button class="btn btn-secondary btn-danger" data-act="wipe"><i class="ph ph-trash"></i> Apagar todos os dados</button></div>
       <div class="hint" style="margin-top:8px">O backup contém tudo (finanças e investimentos). Guarde em local seguro: não é criptografado.</div></div>
     ${cloud ? `<div class="panel" style="margin-top:12px"><div class="panel-h"><h3>Autenticação em duas etapas (2FA)</h3></div><div id="mfa" class="muted">Carregando…</div></div>` : ''}
-    ${cloud ? `<div class="panel" style="margin-top:12px"><div class="panel-h"><h3>Conta</h3></div><div class="row spread wrap"><span>${esc(app.user?.email || '')}</span><button class="btn btn-secondary" data-act="logout"><i class="ph ph-sign-out"></i> Sair</button></div></div>` : ''}`;
+    ${cloud ? `<div class="panel" style="margin-top:12px"><div class="panel-h"><h3>Conta</h3></div><div class="row" style="gap:14px;margin-bottom:12px"><div class="avatar avatar-lg">${memberAvatar(app.user?.id) ? `<img src="${memberAvatar(app.user?.id)}" alt="Sua foto">` : esc(((memberName(app.user?.id) || app.user?.email || 'LM').replace(/[^a-z]/gi, '').slice(0, 2) || 'LM').toUpperCase())}</div><span class="row" style="gap:6px;flex-wrap:wrap"><label class="btn btn-secondary btn-sm" style="cursor:pointer"><i class="ph ph-image"></i> Alterar foto<input type="file" id="avatarfile" accept="image/png,image/jpeg,image/webp" hidden></label>${memberAvatar(app.user?.id) ? '<button class="btn btn-secondary btn-sm" data-act="rm-avatar">Remover foto</button>' : ''}</span></div><div class="row spread wrap"><span>${esc(app.user?.email || '')}</span><span class="row" style="gap:6px"><input class="input" id="myname" style="width:160px" value="${esc(memberName(app.user?.id))}" aria-label="Seu nome" placeholder="Seu nome"><button class="btn btn-secondary btn-sm" data-act="save-name">Salvar nome</button></span><button class="btn btn-secondary" data-act="logout"><i class="ph ph-sign-out"></i> Sair</button></div></div>` : ''}`;
   },
   actions: {
     'edit-account': el => accountForm(store.find('accounts', el.dataset.id)),
@@ -50,12 +50,33 @@ export const config = {
     'save-tol': () => { store.setSetting('tolerance', parseNum(document.getElementById('tol').value) || 3); toast('Tolerância salva', { kind: 'ok' }); },
     export: () => { const b = new Blob([store.exportJSON()], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `lookthemoney-backup-${todayISO()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); },
     wipe: async () => {
-      const ok = await new Promise(res => { let done = false; openModal({ title: 'Apagar todos os dados', body: `<p style="margin:0">Isto apaga <b>tudo</b> (finanças e investimentos) ${app.cloud ? 'da nuvem' : 'deste navegador'} e não pode ser desfeito. Exporte um backup antes.</p><div class="field"><label>Digite APAGAR para confirmar</label><input class="input" id="cf" autocomplete="off"></div>`, actions: '<button class="btn btn-secondary" data-close>Cancelar</button><button class="btn btn-primary btn-danger" data-ok>Apagar tudo</button>', onMount: a => { a.q('[data-ok]').onclick = () => { if (a.q('#cf').value.trim().toUpperCase() === 'APAGAR') { done = true; a.close(); res(true); } else toast('Digite APAGAR para confirmar.', { kind: 'error' }); }; }, onClose: () => { if (!done) res(false); } }); });
-      if (ok) { await store.wipe(); toast('Dados apagados', { kind: 'ok' }); }
+      let shared = !app.cloud;
+      const ok = await new Promise(res => { let done = false; openModal({ title: 'Apagar dados', body: `<p style="margin:0">Isto apaga <b>suas finanças</b> ${app.cloud ? 'da nuvem' : 'deste navegador'} e não pode ser desfeito. Exporte um backup antes.</p>${app.cloud ? `<label class="row" style="margin-top:12px;align-items:flex-start;gap:8px"><input type="checkbox" id="wsh"><span>Apagar <b>também os investimentos</b> (carteira, operações, proventos, metas de alocação, histórico). <b>São compartilhados: somem para a outra pessoa também.</b></span></label>` : ''}<div class="field"><label>Digite APAGAR para confirmar</label><input class="input" id="cf" autocomplete="off"></div>`, actions: '<button class="btn btn-secondary" data-close>Cancelar</button><button class="btn btn-primary btn-danger" data-ok>Apagar</button>', onMount: a => { a.q('[data-ok]').onclick = () => { if (a.q('#cf').value.trim().toUpperCase() === 'APAGAR') { shared = app.cloud ? !!a.q('#wsh')?.checked : true; done = true; a.close(); res(true); } else toast('Digite APAGAR para confirmar.', { kind: 'error' }); }; }, onClose: () => { if (!done) res(false); } }); });
+      if (ok) { await store.wipe({ shared }); toast('Dados apagados', { kind: 'ok' }); }
+    },
+    'rm-avatar': async () => {
+      try { await app.adapter.setAvatar(''); app.members = await app.adapter.members(); store.emit(); toast('Foto removida', { kind: 'ok' }); } catch (e) { toast(e.message, { kind: 'error' }); }
+    },
+    'save-name': async () => {
+      const v = document.getElementById('myname').value.trim(); if (!v) return toast('Informe um nome.', { kind: 'error' });
+      try { await app.adapter.renameMe(v); app.members = await app.adapter.members(); store.emit(); toast('Nome salvo', { kind: 'ok' }); } catch (e) { toast(e.message, { kind: 'error' }); }
     },
   },
   onMount(root) {
     mfaPanel(root);
+    root.querySelector('#avatarfile')?.addEventListener('change', async e => {
+      const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      if (f.size > 8e6) return toast('Imagem grande demais (máx. 8 MB).', { kind: 'error' });
+      try {
+        const url = URL.createObjectURL(f);
+        const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('Não foi possível ler a imagem.')); i.src = url; });
+        const S = 192, side = Math.min(img.width, img.height), cv = document.createElement('canvas'); cv.width = cv.height = S;
+        const cx = cv.getContext('2d'); cx.fillStyle = '#000'; cx.fillRect(0, 0, S, S);
+        cx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, S, S); URL.revokeObjectURL(url);
+        await app.adapter.setAvatar(cv.toDataURL('image/jpeg', 0.85));
+        app.members = await app.adapter.members(); store.emit(); toast('Foto atualizada', { kind: 'ok' });
+      } catch (err) { toast(err.message, { kind: 'error' }); }
+    });
     root.querySelector('#impjson')?.addEventListener('change', async e => {
       const f = e.target.files[0]; if (!f) return;
       try {

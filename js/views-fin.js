@@ -1,6 +1,6 @@
 // Telas do módulo Finanças.
 import { store } from './store.js';
-import { app, getCtx } from './app.js';
+import { app, memberName, getCtx } from './app.js';
 import {
   money, smoney, pct, pctPlain, num, gain, gainMoney, gainPct, col, arrow, kpi, tag, progress, empty, monthNav, seg, barsIncomeExpense,
   donut, ring, toast, confirmDialog, esc, icon, options, field, openModal, formData, errBox,
@@ -54,7 +54,7 @@ export const overview = {
     const budget = Object.entries(c.plans).filter(([k, v]) => v > 0 && k !== APORTE_CAT).map(([k, v]) => ({ k, used: spent[k] || 0, plan: v, r: (spent[k] || 0) / v })).sort((a, b) => b.r - a.r).slice(0, 5);
     const bills = billsForMonth(c.bills, c.cards, c.txs, c.billPayments, c.todayYM).filter(b => !b.paid).slice(0, 5);
     const al = alerts(c);
-    const name = (store.setting('userName') || (app.user?.email || '').split('@')[0] || '').replace(/^./, m => m.toUpperCase());
+    const name = (store.setting('userName') || memberName(app.user?.id) || (app.user?.email || '').split('@')[0] || '').replace(/^./, m => m.toUpperCase());
     return `${head(`Olá${name && app.user?.id !== 'local' ? ', ' + esc(name) : ''}`, new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, m => m.toUpperCase()), `<button class="btn btn-primary" data-act="new-tx"><i class="ph ph-plus"></i> Novo lançamento</button>`)}
     <div class="grid g-kpi">
       ${`<div class="kpi hero"><div class="kpi-l">Patrimônio total</div><div class="kpi-v num">${money(accBal + inv, 0)}</div><div class="kpi-s">${money(accBal, 0)} em contas · ${money(inv, 0)} investidos</div></div>`}
