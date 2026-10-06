@@ -6,6 +6,6 @@
   "description": "LookTheMoney — controle financeiro e de investimentos",
   "scripts": {
     "start": "node serve.mjs",
-    "test": "node --test tests/calc.test.js tests/adapter.test.js tests/market.test.js tests/valuation.test.js tests/snapshots.test.js tests/agenda.test.js"
+    "test": "node --test tests/calc.test.js tests/adapter.test.js tests/market.test.js tests/valuation.test.js tests/snapshots.test.js tests/agenda.test.js tests/divs.test.js"
   }
 }

@@ -5,6 +5,7 @@ import { buildPortfolio, backfillSnapshots, snapshotsWithFlows, flowList, snapsh
 import { makeCdi, CLASS_ORDER, monthsDiff } from './calc.js';
 import { refreshQuotes, getCdi, getIpca, fetchHistory, hasLiveSource } from './quotes.js';
 import { CONFIG } from './config.js';
+import { autoDividends, histCache, loadDivHistory } from './divs.js';
 
 export const memberAvatar = id => { const a = (app.members || []).find(m => m.userId === id)?.avatar || ''; return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(a) ? a : ''; };
 export const memberName = id => (app.members || []).find(m => m.userId === id)?.name || '';
@@ -27,16 +28,17 @@ export function getCtx() {
   const D = store.data;
   const q = store.quotes;
   const cdi = q.cdiIdx || makeCdi([]);
+  const divs = [...D.dividends, ...autoDividends(D.assets, D.investTx, D.dividends, histCache(), today)]; // manuais + automáticos
   const ctx = {
     today, todayYM: today.slice(0, 7), ym: app.ym,
     accounts: D.accounts, cards: D.cards, txs: D.transactions, bills: D.bills, billPayments: D.billPayments,
     plans: Object.fromEntries(D.budgetPlans.map(p => [p.id, +p.planned])),
-    goals: D.goals, assets: D.assets, investTx: D.investTx, dividends: D.dividends,
+    goals: D.goals, assets: D.assets, investTx: D.investTx, dividends: divs,
     targets: Object.fromEntries(CLASS_ORDER.map(k => [k, +(D.targets.find(t => t.id === k)?.percent ?? 0)])),
     tolerance: +store.setting('tolerance', 3),
     quotes: q, cdi, ipca: q.ipca || [],
-    get portfolio() { return (this._p ||= buildPortfolio({ assets: D.assets, investTx: D.investTx, dividends: D.dividends, quotes: q, cdi, ipca: q.ipca || [], today })); },
-    get snaps() { return (this._s ||= snapshotsWithFlows(D.snapshots, D.assets, D.investTx, D.dividends)); },
+    get portfolio() { return (this._p ||= buildPortfolio({ assets: D.assets, investTx: D.investTx, dividends: divs, quotes: q, cdi, ipca: q.ipca || [], today })); },
+    get snaps() { return (this._s ||= snapshotsWithFlows(D.snapshots, D.assets, D.investTx, divs)); },
     get flows() { return (this._f ||= flowList(D.assets, D.investTx)); },
   };
   memo = { v: store.v, ctx, ym: app.ym };
@@ -77,6 +79,8 @@ export function refreshAll({ force = false, silent = false } = {}) {
       const [cdi, ipca] = await Promise.all([getCdi(from), assets.some(a => a.fixedIncome?.indexer === 'IPCA') ? getIpca(addMonthsISO(from, -2)) : Promise.resolve({ data: [] })]);
       q.cdiRaw = cdi.data; q.cdiIdx = makeCdi(cdi.data); q.ipca = ipca.data;
       if (cdi.stale) q.errors.push('CDI (BCB): usando último valor salvo');
+      const heldT = [...new Set(assets.filter(a => a.assetClass !== 'RENDA_FIXA' && a.assetClass !== 'CRIPTO').map(a => a.ticker.toUpperCase()))];
+      loadDivHistory(heldT).then(ch => { if (ch) store.emit(); }).catch(() => {}); // proventos automáticos: histórico do Yahoo (não bloqueia)
       const r = await refreshQuotes(assets, { force, token: brapiToken() });
       q.map = r.map; q.fx = r.fx; q.updatedAt = r.updatedAt || Date.now(); q.offline = r.offline;
       q.errors.push(...r.errors);
@@ -114,7 +118,7 @@ export async function ensureSnapshots({ rebuildEst = false, rebuildAll = false }
   const existing = store.get('snapshots');
   const first = investTx.reduce((m, t) => (t.date < m ? t.date : m), today);
   const have = new Set(existing.map(s => s.id));
-  if (!rebuildAll && snapshotsInconsistent(existing, assets, investTx, store.get('dividends'))) rebuildAll = true; // auto-cura de histórico gravado antes de lançamentos retroativos
+  if (!rebuildAll && snapshotsInconsistent(existing, assets, investTx, getCtx().dividends)) rebuildAll = true; // auto-cura de histórico gravado antes de lançamentos retroativos
   let missing = false;
   for (let d = first; d < today; d = addDays(d, 1)) if (!have.has(d)) { missing = true; break; }
   const out = [];

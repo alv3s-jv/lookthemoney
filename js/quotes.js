@@ -90,13 +90,13 @@ export const getCdi = from => incrementalSeries(12, 'ltm.cdi.v1', from, 6 * 3600
 export const getIpca = from => incrementalSeries(433, 'ltm.ipca.v1', from, 24 * 3600e3);
 
 // ------------------------------------------------------------------ histórico (backfill, melhor esforço)
-export async function fetchHistory(asset, token) {
+export async function fetchHistory(asset, token, range = '3mo') {
   if (asset.assetClass === 'CRIPTO') {
     const id = asset.cgId || CRYPTO_IDS[asset.ticker.toUpperCase()]; if (!id) return [];
     const j = await getJSON(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=brl&days=90&interval=daily`);
     return (j.prices || []).map(([t, p]) => ({ date: toISO(new Date(t)), close: p }));
   }
-  if (edgeOn()) { try { const e = await edgeCall({ history: asset.ticker.toUpperCase() }); if (e.series?.length) return e.series; } catch { /* cai na brapi */ } }
+  if (edgeOn()) { try { const e = await edgeCall({ history: asset.ticker.toUpperCase(), range }); if (e.series?.length) return e.series; } catch { /* cai na brapi */ } }
   const q = token ? `&token=${encodeURIComponent(token)}` : '';
   const j = await getJSON(`https://brapi.dev/api/quote/${encodeURIComponent(asset.ticker)}?range=3mo&interval=1d${q}`, { timeout: 20000 });
   return (j.results?.[0]?.historicalDataPrice || []).filter(x => x.close != null).map(x => ({ date: toISO(new Date(x.date * 1000)), close: x.close }));

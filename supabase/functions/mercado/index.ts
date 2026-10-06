@@ -4,7 +4,7 @@
 //   { symbols: ["PETR4", ...] }                       → cotações atuais
 //   { symbols: [...], detail: true }                  → + fundamentos, histórico mensal de 5 anos e proventos
 //   { universe: true }                                → ~100 ações/FIIs líquidos + Ibovespa (para a página Mercado)
-//   { history: "PETR4" }                              → fechamentos diários de 3 meses
+//   { history: "PETR4", range: "2y" }                 → fechamentos diários (range: 3mo, 6mo, 1y, 2y, 5y; padrão 3mo)
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -110,7 +110,8 @@ Deno.serve(async (req) => {
 
     if (b.history) {
       if (!valid(b.history)) return json({ error: 'ticker inválido' }, 400);
-      const h = await cached(`h:${b.history}`, 3600_000, () => chart(b.history, '3mo', '1d'));
+      const rg = ['3mo', '6mo', '1y', '2y', '5y'].includes(b.range) ? b.range : '3mo';
+      const h = await cached(`h:${b.history}:${rg}`, 3600_000, () => chart(b.history, rg, '1d'));
       const ts: number[] = h.timestamp || [], cl: (number | null)[] = h.indicators?.quote?.[0]?.close || [];
       return json({ series: ts.map((t, i) => ({ date: new Date(t * 1000).toISOString().slice(0, 10), close: cl[i] })).filter((x) => x.close != null) });
     }
