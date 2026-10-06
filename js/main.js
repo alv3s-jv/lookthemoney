@@ -1,4 +1,5 @@
 // Ponto de entrada: autenticação, shell (sidebar / tab bar), roteador por hash e despacho de eventos.
+import { edge } from './feed.js';
 import { CONFIG } from './config.js';
 import { LocalAdapter, SupabaseAdapter } from './db.js';
 import { store } from './store.js';
@@ -128,6 +129,7 @@ function onKey(e) {
 // ----------------------------------------------------------------------------------- boot
 async function startApp(adapter) {
   app.adapter = adapter; app.cloud = adapter.mode === 'cloud'; app.user = await adapter.user();
+  edge.call = app.cloud ? async body => { const { data, error } = await adapter.sb.functions.invoke('mercado', { body }); if (error) throw new Error(error.message || 'falha na função'); if (data?.error) throw new Error(data.error); return data; } : null;
   const root = document.getElementById('root');
   root.innerHTML = '<div class="app"><aside class="side" id="side"></aside><div class="main"><div class="mtop" id="mtop"></div><main class="page" id="view" tabindex="-1" aria-live="polite"></main></div></div><nav class="tabbar" id="tabbar" aria-label="Navegação"></nav>';
   store.onError = e => toast('Não foi possível salvar: ' + e.message, { kind: 'error', ms: 6000 });

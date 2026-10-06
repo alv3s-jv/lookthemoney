@@ -1,5 +1,6 @@
 // Tela "Mercado": painel estilo homebroker com dados do dia (ao vivo), mapa de calor, rankings e análise automática.
 import { app, brapiToken } from './app.js';
+import { edgeOn } from './feed.js';
 import { esc } from './ui.js';
 import { nf } from './util.js';
 import { head } from './views-fin.js';
@@ -139,9 +140,9 @@ const NAMES_OF = t => NAMES[t] || '';
 function body(c) {
   const d = marketState.data;
   next = new Map();
-  const noTok = !brapiToken();
+  const noTok = !brapiToken() && !edgeOn();
   const html = `${cards(d)}
-    ${noTok ? '<div class="notice" style="margin-bottom:14px"><i class="ph ph-info"></i><span>Sem token da brapi: o Ibovespa aparece via ETF BOVA11 e as listas usam o plano aberto. Cole seu token (grátis) em <a href="#/config">Configurações</a> para ver os pontos do índice.</span></div>' : ''}
+    ${noTok ? '<div class="notice" style="margin-bottom:14px"><i class="ph ph-info"></i><span>A função de cotações do Supabase não está ativa e não há token da brapi: o Ibovespa aparece via ETF BOVA11 e as listas usam o plano aberto. Veja no README como publicar a função "mercado".</span></div>' : ''}
     ${recoSection(d)}
     <div class="grid g-2 mk-main">${analysisPanel(d)}<div class="stack">${myDay(c)}${cryptoPanel(d)}</div></div>
     <div class="panel" style="margin-bottom:14px"><div class="panel-h"><h3>Mapa de calor</h3><span class="sub">tamanho ≈ giro financeiro · cor = variação do dia · ${mkt.tab === 'funds' ? 'FIIs e ETFs' : 'ações'}</span></div>${heat(mkt.tab === 'funds' ? d?.lists?.funds || [] : d?.lists?.stocks || [])}</div>

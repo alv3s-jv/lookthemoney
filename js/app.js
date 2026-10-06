@@ -1,7 +1,7 @@
 // Estado compartilhado da aplicação, contexto derivado (memoizado) e serviços de atualização.
 import { store } from './store.js';
 import { todayISO, currentYM, addMonthsYM, addMonthsISO, addDays, groupBy, uid } from './util.js';
-import { buildPortfolio, backfillSnapshots, snapshotsWithFlows, flowList } from './portfolio.js';
+import { buildPortfolio, backfillSnapshots, snapshotsWithFlows, flowList, snapshotsInconsistent } from './portfolio.js';
 import { makeCdi, CLASS_ORDER, monthsDiff } from './calc.js';
 import { refreshQuotes, getCdi, getIpca, fetchHistory, hasLiveSource } from './quotes.js';
 import { CONFIG } from './config.js';
@@ -105,7 +105,7 @@ export async function loadHistoryFor(assets) {
 }
 
 /** Garante snapshot de hoje (valor real) e preenche dias faltantes (estimados). */
-export async function ensureSnapshots({ rebuildEst = false } = {}) {
+export async function ensureSnapshots({ rebuildEst = false, rebuildAll = false } = {}) {
   const today = todayISO();
   const assets = store.get('assets'), investTx = store.get('investTx');
   if (!investTx.length) return;
@@ -114,13 +114,14 @@ export async function ensureSnapshots({ rebuildEst = false } = {}) {
   const existing = store.get('snapshots');
   const first = investTx.reduce((m, t) => (t.date < m ? t.date : m), today);
   const have = new Set(existing.map(s => s.id));
+  if (!rebuildAll && snapshotsInconsistent(existing, assets, investTx, store.get('dividends'))) rebuildAll = true; // auto-cura de histórico gravado antes de lançamentos retroativos
   let missing = false;
   for (let d = first; d < today; d = addDays(d, 1)) if (!have.has(d)) { missing = true; break; }
   const out = [];
-  if (missing || rebuildEst) {
+  if (missing || rebuildEst || rebuildAll) {
     const held = assets.filter(a => investTx.some(t => t.assetId === a.id));
     const history = await loadHistoryFor(held);
-    out.push(...backfillSnapshots({ assets, investTx, cdi: q.cdiIdx || makeCdi([]), ipca: q.ipca || [], history }, existing, today, { rebuildEst }));
+    out.push(...backfillSnapshots({ assets, investTx, cdi: q.cdiIdx || makeCdi([]), ipca: q.ipca || [], history }, existing, today, { rebuildEst, rebuildAll }));
   }
   const p = ctx.portfolio;
   if (p.total > 0 && !p.withoutQuote.length) out.push({ id: today, date: today, value: p.total, est: false });
@@ -129,5 +130,5 @@ export async function ensureSnapshots({ rebuildEst = false } = {}) {
 
 /** Após qualquer alteração em investimentos: busca cotação de ativos novos e reconstrói o histórico estimado. */
 export async function afterInvestChange() {
-  try { await refreshAll({ silent: true }); await ensureSnapshots({ rebuildEst: true }); } catch (e) { console.error(e); }
+  try { await refreshAll({ silent: true }); await ensureSnapshots({ rebuildEst: true, rebuildAll: true }); } catch (e) { console.error(e); }
 }

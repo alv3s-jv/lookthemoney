@@ -116,3 +116,12 @@ js/views-*.js, forms-*.js       telas e formulários
 supabase/schema.sql             tabelas, RLS, domicílio (2 usuários)
 tests/                          testes (cálculos e adaptador)
 ```
+
+
+## Cotações da B3 sem token (Edge Function `mercado`)
+
+A brapi limita ativos e exige token; o Yahoo Finance e a B3 bloqueiam chamadas diretas do navegador (CORS). Por isso as cotações passam por uma Edge Function no **seu** Supabase, que só responde a usuários logados. O app tenta a função primeiro e usa a brapi como reserva.
+
+Publicar (sem CLI): Supabase → **Edge Functions** → **Deploy a new function** → **Via Editor** → nome `mercado` → cole o conteúdo de `supabase/functions/mercado/index.ts` → **Deploy**. Deixe **Verify JWT** ligado.
+
+Limites: Yahoo é fonte não oficial (pode mudar sem aviso); fundamentos (LPA/VPA) dependem do endpoint `quoteSummary` e, se falharem, o Graham fica "sem dados" e a análise usa só Bazin; proventos vêm brutos (bancos e seguradoras são tratados como JCP, −15%).

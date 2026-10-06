@@ -30,7 +30,7 @@ export function stamp(c) {
 const invHead = (c, title, sub = '', extra = '') => head(title, sub, `${stamp(c)}${extra}<button class="btn btn-primary" data-act="buy"><i class="ph ph-plus"></i> Registrar compra</button>`);
 const sk = (c, html) => (c.quotes.loading && !c.quotes.fetchedAt ? '<span class="sk"></span>' : html);
 
-const noAssets = (c, title) => `${invHead(c, title)}<div class="panel">${empty('Nenhum ativo registrado ainda. Registre sua primeira compra (ações, FIIs, ETFs, renda fixa ou cripto) para ver patrimônio, desempenho vs CDI e alocação.', `<div class="row wrap" style="justify-content:center"><button class="btn btn-primary btn-sm" data-act="buy"><i class="ph ph-plus"></i> Registrar compra</button><button class="btn btn-secondary btn-sm" data-act="load-demo">Carregar dados de exemplo</button></div>`)}</div>`;
+const noAssets = (c, title) => `${invHead(c, title)}<div class="panel"><div class="empty big"><i class="ph ph-chart-line-up" aria-hidden="true"></i><p><b style="color:var(--color-text);font-size:17px">Sua carteira está vazia</b><br>Registre a primeira compra e o app calcula patrimônio, preço médio, desempenho vs CDI, proventos e rebalanceamento.${app.cloud ? ' A carteira é compartilhada: a outra pessoa vê e edita os mesmos ativos.' : ''}</p><div class="onb"><div class="st"><b><span class="n">1</span>Registre compras</b><span>Ações, FIIs, ETFs, BDR/EUA, renda fixa e cripto, com data, quantidade, preço e taxas.</span></div><div class="st"><b><span class="n">2</span>Defina a alocação-alvo</b><span>Em Alocação, informe o % por classe. O simulador diz onde aportar sem vender nada.</span></div><div class="st"><b><span class="n">3</span>Lance os proventos</b><span>Dividendos, JCP (com IR 15%) e rendimentos entram no retorno total e no yield.</span></div></div><div class="row wrap" style="justify-content:center;margin-top:14px"><button class="btn btn-primary" data-act="buy"><i class="ph ph-plus"></i> Registrar compra</button>${app.cloud ? '' : '<button class="btn btn-secondary" data-act="load-demo">Carregar dados de exemplo</button>'}</div></div></div>`;
 const warnQuotes = (c) => { const p = c.portfolio; return p.withoutQuote.length ? `<div class="notice warn" style="margin-bottom:14px"><i class="ph ph-warning"></i><span>Sem cotação para <b>${p.withoutQuote.map(esc).join(', ')}</b> — valorizados pelo custo. Verifique o ticker, o token da brapi em Configurações ou informe um preço manual no ativo.</span></div>` : ''; };
 
 // ---- período / desempenho ----
@@ -88,7 +88,7 @@ export const desempenho = {
     <div class="panel"><div class="panel-h"><h3>Rentabilidade mês a mês</h3><span class="sub">a barra mostra a carteira; o traço claro, o CDI do mesmo mês</span></div>
       ${mr.length ? `<div class="tw"><table class="table"><thead><tr><th>Mês</th><th class="r">Carteira</th><th class="r">CDI</th><th class="r">% do CDI</th><th style="width:34%">Carteira vs CDI</th></tr></thead><tbody>${mr.map(m => `<tr><td>${ymShort(m.ym)}</td><td class="r num">${gainPct(m.port, 2)}</td><td class="r num">${pct(m.cdi, 2)}</td><td class="r num">${m.pctCdi == null ? '—' : nf(m.pctCdi, 0) + '%'}</td><td><div style="position:relative;height:10px;background:var(--color-neutral-800);border-radius:99px"><div style="position:absolute;left:0;top:0;bottom:0;width:${Math.max(1, Math.abs(m.port) / maxAbs * 100)}%;background:${m.port >= 0 ? 'var(--color-accent)' : DN};border-radius:99px"></div><div style="position:absolute;top:-3px;bottom:-3px;left:${Math.abs(m.cdi) / maxAbs * 100}%;width:2px;background:var(--color-text)"></div></div></td></tr>`).join('')}</tbody></table></div>` : empty('Sem meses fechados ainda.')}</div>`;
   },
-  actions: { rebuild: async () => { await ensureSnapshots({ rebuildEst: true }); toast('Histórico recalculado', { kind: 'ok' }); } },
+  actions: { rebuild: async () => { await ensureSnapshots({ rebuildEst: true, rebuildAll: true }); toast('Histórico recalculado', { kind: 'ok' }); } },
 };
 
 // =============================================================================================== Posições
@@ -275,7 +275,7 @@ function applySuggestions() {
       }
       if (d.acc) store.setSetting('lastInvestAccount', d.acc);
       toast(`${buys.length} compras registradas`, { kind: 'ok' }); api.close(); AL.aporte = null;
-      ensureSnapshots({ rebuildEst: true }).catch(() => {});
+      ensureSnapshots({ rebuildEst: true, rebuildAll: true }).catch(() => {});
     }),
   });
 }

@@ -100,7 +100,7 @@ export function valueAt(date, { assets, investTx, cdi, ipca, history }) {
  * Sem histórico de preço (ex.: fora dos 3 meses do plano grátis), carrega o valor do dia anterior + fluxo do dia
  * (retorno 0 nesses dias) em vez de cair para o custo — evita "buracos" artificiais no gráfico.
  */
-export function backfillSnapshots(ctx, existing, today, { rebuildEst = false } = {}) {
+export function backfillSnapshots(ctx, existing, today, { rebuildEst = false, rebuildAll = false } = {}) {
   if (!ctx.investTx.length) return [];
   const first = ctx.investTx.reduce((m, t) => (t.date < m ? t.date : m), '9999-12-31');
   const have = new Map(existing.map(s => [s.id, s]));
@@ -108,7 +108,7 @@ export function backfillSnapshots(ctx, existing, today, { rebuildEst = false } =
   const out = []; let prev = null;
   for (let d = first; d < today; d = addDays(d, 1)) {
     const cur = have.get(d);
-    if (cur && !(rebuildEst && cur.est)) { prev = cur; continue; }
+    if (cur && !rebuildAll && !(rebuildEst && cur.est)) { prev = cur; continue; }
     const r = valueAt(d, ctx);
     let value = r.value;
     if (r.est && prev && prev.value > 0) value = prev.value + (flow[d] || 0);
@@ -122,4 +122,18 @@ export function backfillSnapshots(ctx, existing, today, { rebuildEst = false } =
 export function snapshotsWithFlows(snaps, assets, investTx, dividends) {
   const { flow, income } = dailyFlows(assets, investTx, dividends);
   return [...snaps].sort((a, b) => a.date.localeCompare(b.date)).map(s => ({ ...s, netFlow: flow[s.date] || 0, income: income[s.date] || 0 }));
+}
+
+/**
+ * Detecta histórico incoerente: snapshots gravados ANTES de lançamentos retroativos (ex.: aporte datado no passado) não incluem o aporte,
+ * mas o fluxo derivado das transações inclui — o valor menos o fluxo do dia fica ≤ 0 e o TWR "afunda" abaixo de −100%.
+ * Retorna true se algum passo diário perde mais de 60% do valor anterior (impossível em carteira diversificada).
+ */
+export function snapshotsInconsistent(snaps, assets, investTx, dividends = []) {
+  const s = snapshotsWithFlows(snaps, assets, investTx, dividends);
+  for (let i = 1; i < s.length; i++) {
+    const prev = s[i - 1]; if (!(prev.value > 0)) continue;
+    if ((s[i].value + (s[i].income || 0) - (s[i].netFlow || 0)) / prev.value < 0.4) return true;
+  }
+  return false;
 }

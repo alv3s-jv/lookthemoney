@@ -155,6 +155,7 @@ export function twrSeries(snaps) {
   for (const x of s) {
     let r = 0;
     if (prev && prev.value > 0) r = (x.value + (x.income || 0) - (x.netFlow || 0)) / prev.value - 1;
+    if (r <= -0.99) r = 0; // dado incoerente (valor menor que o aporte do dia): ignora o passo em vez de gerar retorno < −100%
     cum *= 1 + r;
     out.push({ date: x.date, twr: cum - 1, est: !!x.est });
     prev = x;

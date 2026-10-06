@@ -8,6 +8,8 @@
 //  • Fundo/suporte: mínima de 52 semanas, mínima de 5 anos e posição do preço nessas faixas
 // Nada disso prevê preço: são regras para evitar pagar caro. Dados vêm da brapi e podem ter erros ou defasagem.
 
+import { edgeOn, edgeCall } from './feed.js';
+
 const KEY = 'ltm.val.v1';
 const TTL = 12 * 3600 * 1000;
 
@@ -119,10 +121,18 @@ export async function fetchFundamentals(ticker, token) {
 /** Busca (com cache de 12 h) os fundamentos de vários papéis, um por vez para respeitar o limite do plano. */
 export async function loadFundamentals(tickers, { token = '', force = false, onProgress } = {}) {
   const cache = load(), out = {}, errors = {};
-  let done = 0;
+  let done = 0; const got = new Set();
+  // Edge Function (Yahoo): todos os vencidos de uma vez, sem token
+  const due = tickers.filter(t => force || !cache[t] || Date.now() - cache[t].at >= TTL);
+  if (due.length && edgeOn()) {
+    try {
+      const j = await edgeCall({ symbols: due, detail: true });
+      for (const t of due) { const r = j.data?.[t]; if (r?.price != null) { cache[t] = { ...r, t, at: Date.now() }; got.add(t); } else if (j.errors?.[t]) errors[t] = j.errors[t]; }
+    } catch (e) { /* cai na brapi */ }
+  }
   for (const t of tickers) {
     const c = cache[t];
-    if (!force && c && Date.now() - c.at < TTL) out[t] = c;
+    if (got.has(t) || (!force && c && Date.now() - c.at < TTL)) { out[t] = c; delete errors[t]; }
     else {
       try { out[t] = cache[t] = await fetchFundamentals(t, token); await sleep(350); }
       catch (e) { errors[t] = e.message; if (c) out[t] = c; }

@@ -4,6 +4,7 @@
 //  • AwesomeAPI     (USD-BRL)
 //  • BCB SGS 12     (CDI diário)   • BCB SGS 433 (IPCA mensal)
 import { addDays, parseISO, toISO, todayISO, daysBetween } from './util.js';
+import { edgeOn, edgeCall } from './feed.js';
 
 const KEY = 'ltm.quotes.v2';
 const TTL = 15 * 60 * 1000;
@@ -95,6 +96,7 @@ export async function fetchHistory(asset, token) {
     const j = await getJSON(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=brl&days=90&interval=daily`);
     return (j.prices || []).map(([t, p]) => ({ date: toISO(new Date(t)), close: p }));
   }
+  if (edgeOn()) { try { const e = await edgeCall({ history: asset.ticker.toUpperCase() }); if (e.series?.length) return e.series; } catch { /* cai na brapi */ } }
   const q = token ? `&token=${encodeURIComponent(token)}` : '';
   const j = await getJSON(`https://brapi.dev/api/quote/${encodeURIComponent(asset.ticker)}?range=3mo&interval=1d${q}`, { timeout: 20000 });
   return (j.results?.[0]?.historicalDataPrice || []).filter(x => x.close != null).map(x => ({ date: toISO(new Date(x.date * 1000)), close: x.close }));
@@ -128,8 +130,15 @@ export async function refreshQuotes(assets, { force = false, token = '', onProgr
     catch (e) { errors.push('CoinGecko: ' + e.message); }
   }
 
-  // B3 em fila (plano grátis da brapi: 1 ativo por requisição, 1 simultânea)
-  const b3 = live.filter(a => a.assetClass !== 'CRIPTO' && (force || !fresh(a.ticker)));
+  // B3: primeiro a Edge Function (Yahoo, em lote, sem token); o que faltar vai para a brapi em fila
+  let b3 = live.filter(a => a.assetClass !== 'CRIPTO' && (force || !fresh(a.ticker)));
+  if (b3.length && edgeOn()) {
+    try {
+      const j = await edgeCall({ symbols: [...new Set(b3.map(a => a.ticker.toUpperCase()))] });
+      for (const a of b3) { const r = j.data?.[a.ticker.toUpperCase()]; if (r?.price != null) cache.q[a.ticker] = { price: r.price, prevClose: r.prev ?? null, ts: r.ts || Date.now(), fetchedAt: Date.now(), source: 'Yahoo' }; }
+      b3 = b3.filter(a => cache.q[a.ticker]?.source !== 'Yahoo' || Date.now() - cache.q[a.ticker].fetchedAt > 60e3);
+    } catch { /* cai na brapi */ }
+  }
   let done = 0;
   for (const a of b3) {
     try { const r = await fetchBrapi(a.ticker, token); cache.q[a.ticker] = { ...r, fetchedAt: Date.now(), source: 'brapi' }; }

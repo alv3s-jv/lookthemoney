@@ -5,6 +5,7 @@
 //  • BCB SGS       Selic meta (432), CDI anualizado (4389), IPCA 12 meses (13522)
 // A "análise do dia" é gerada por regras a partir desses números: descreve o que aconteceu, não prevê nem recomenda.
 import { nf } from './util.js';
+import { edgeOn, edgeCall } from './feed.js';
 
 const KEY = 'ltm.mkt.v1';
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch { return null; } };
@@ -35,6 +36,18 @@ async function fetchIbov(token) {
   const j = await getJSON(`https://brapi.dev/api/quote/${encodeURIComponent('^BVSP')}?token=${encodeURIComponent(token)}`);
   const r = j.results?.[0]; if (!r || r.regularMarketPrice == null) return null;
   return { price: r.regularMarketPrice, chg: r.regularMarketChangePercent ?? null, high: r.regularMarketDayHigh ?? null, low: r.regularMarketDayLow ?? null };
+}
+
+/** B3: Edge Function (Yahoo, sem token) primeiro; brapi como reserva. */
+async function fetchB3(token) {
+  if (edgeOn()) {
+    try {
+      const j = await edgeCall({ universe: true });
+      if ((j.stocks?.length || 0) >= 5) return { lists: { stocks: j.stocks.map(s => ({ ...s, cap: null })), funds: (j.funds || []).map(s => ({ ...s, cap: null })) }, ibov: j.ibov || null, source: 'Yahoo' };
+    } catch { /* cai na brapi */ }
+  }
+  const [lists, ibov] = await Promise.all([fetchLists(token), fetchIbov(token)]);
+  return { lists, ibov, source: 'brapi' };
 }
 
 async function fetchFxAll() {
@@ -74,8 +87,7 @@ export async function refreshMarket({ token = '', force = false } = {}) {
   jobs.push(fetchFxAll().then(v => { d.fx = v; }).catch(e => state.errors.push('Câmbio: ' + e.message)));
   jobs.push(fetchCrypto().then(v => { d.crypto = v; }).catch(e => state.errors.push('Cripto: ' + e.message)));
   if (force || now - state.listsAt > 5 * 60 * 1000 || !d.lists) {
-    jobs.push(fetchLists(token).then(v => { d.lists = v; state.listsAt = now; }).catch(e => state.errors.push('B3: ' + e.message)));
-    jobs.push(fetchIbov(token).then(v => { d.ibov = v; }).catch(e => state.errors.push('Ibovespa: ' + e.message)));
+    jobs.push(fetchB3(token).then(v => { d.lists = v.lists; d.ibov = v.ibov; d.b3src = v.source; state.listsAt = now; }).catch(e => state.errors.push('B3: ' + e.message)));
   }
   if (force || now - state.macroAt > 6 * 3600 * 1000 || !d.macro) {
     jobs.push(fetchMacro().then(v => { d.macro = v; state.macroAt = now; }).catch(e => state.errors.push('BCB: ' + e.message)));
@@ -119,7 +131,7 @@ export function analyze(d, port = null) {
   if (d.ibov?.chg != null) out.push({ icon: 'ph-chart-line-up', tone: d.ibov.chg >= 0 ? 'up' : 'dn', title: 'Ibovespa', text: `${nf(d.ibov.price, 0)} pontos (${p2(d.ibov.chg)}).${d.ibov.high && d.ibov.low ? ` Faixa do dia: ${nf(d.ibov.low, 0)} a ${nf(d.ibov.high, 0)}.` : ''}` });
   else {
     const b = (d.lists?.funds || []).find(s => s.t === 'BOVA11');
-    if (b) out.push({ icon: 'ph-chart-line-up', tone: b.chg >= 0 ? 'up' : 'dn', title: 'Ibovespa (via BOVA11)', text: `O ETF BOVA11 está em ${brl(b.price)} (${p2(b.chg)}), referência do índice. Informe o token da brapi em Configurações para ver os pontos do Ibovespa.` });
+    if (b) out.push({ icon: 'ph-chart-line-up', tone: b.chg >= 0 ? 'up' : 'dn', title: 'Ibovespa (via BOVA11)', text: `O ETF BOVA11 está em ${brl(b.price)} (${p2(b.chg)}), referência do índice (pontos indisponíveis na fonte atual).` });
   }
   if (L.length >= 10) {
     const hi = [...L].filter(s => s.brl >= 2e7).sort((a, b) => b.chg - a.chg), up = hi[0], dn = hi[hi.length - 1];

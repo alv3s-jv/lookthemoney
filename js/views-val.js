@@ -3,6 +3,7 @@ import { app, brapiToken } from './app.js';
 import { esc } from './ui.js';
 import { nf } from './util.js';
 import { head } from './views-fin.js';
+import { edgeOn } from './feed.js';
 import { topN } from './reco.js';
 import { analyze, screen, loadFundamentals, YIELD_MIN, CYCLICAL } from './valuation.js';
 
@@ -19,7 +20,7 @@ const pc = (v, d = 1) => (v >= 0 ? '+' : '−') + nf(Math.abs(v * 100), d) + '%'
 const heldStocks = () => (lastC?.portfolio?.active || []).filter(h => h.asset.assetClass === 'ACAO_BR').map(h => h.asset.ticker);
 const universe = () => {
   const all = [...new Set([...topN().map(r => r.t), ...heldStocks(), ...S.custom])].filter(t => /^[A-Z]{4}\d{1,2}$/.test(t) && !/^XPBR/.test(t));
-  return brapiToken() ? all : all.filter(t => FREE.includes(t));
+  return (brapiToken() || edgeOn()) ? all : all.filter(t => FREE.includes(t));
 };
 const rows = () => Object.values(S.raw).filter(r => universe().includes(r.t)).map(r => analyze(r, { mos: S.mos }));
 
@@ -95,12 +96,12 @@ function controls() {
 
 function bodyHtml() {
   const rs = rows(), errs = Object.entries(S.errors);
-  const noTok = !brapiToken();
-  return `${noTok ? '<div class="notice" style="margin-bottom:14px"><i class="ph ph-info"></i><span>Sem token da brapi só dá para analisar PETR4, VALE3, ITUB4 e MGLU3. Cole o token em <a href="#/config">Configurações</a> para analisar a lista toda.</span></div>' : ''}
+  const noTok = !brapiToken() && !edgeOn();
+  return `${noTok ? '<div class="notice" style="margin-bottom:14px"><i class="ph ph-info"></i><span>A função de cotações (Supabase) não está ativa: sem ela e sem token da brapi só dá para analisar PETR4, VALE3, ITUB4 e MGLU3. Veja o passo a passo no README (Edge Function "mercado").</span></div>' : ''}
   ${S.loading ? `<div class="notice" style="margin-bottom:14px"><i class="ph ph-arrows-clockwise spin"></i><span>Buscando fundamentos… ${S.prog[0]} de ${S.prog[1]}</span></div>` : ''}
   ${errs.length ? `<div class="notice warn" style="margin-bottom:14px"><i class="ph ph-warning"></i><span>Sem dados para: ${errs.map(([t, e]) => `${esc(t)} (${esc(e)})`).join(', ')}.</span></div>` : ''}
   ${rs.length ? triage(rs) + table(rs) : (S.loading ? '' : '<div class="panel"><div class="empty"><p>Sem dados ainda. Clique em atualizar.</p></div></div>')}${method()}
-  <div class="hint" style="margin-top:10px">Triagem quantitativa com dados públicos (brapi). Não considera seu perfil, objetivo ou tributação e não é recomendação de investimento.</div>`;
+  <div class="hint" style="margin-top:10px">Triagem quantitativa com dados públicos (Yahoo Finance/brapi). Não considera seu perfil, objetivo ou tributação e não é recomendação de investimento.</div>`;
 }
 
 function paint() {
