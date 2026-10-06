@@ -322,3 +322,24 @@ input[type=date].input { color-scheme: dark; }
 .house .hnote { font-size: 12px; color: var(--color-neutral-400); margin: 10px 0 8px; line-height: 1.45; }
 .src { font-size: 12px; color: var(--color-accent-300); text-decoration: none; display: inline-flex; gap: 5px; align-items: center; } .src:hover { text-decoration: underline; }
 .page.enter .reco, .page.enter .house { animation: rise .5s ease both; animation-delay: calc(var(--i, 0) * 45ms); }
+
+/* ------------------------------------------------------------ preço-teto */
+.pill.st-compra { background: color-mix(in srgb, var(--up) 16%, transparent); color: var(--up); }
+.pill.st-justo { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.pill.st-esticado, .pill.st-caro { background: color-mix(in srgb, var(--dn) 14%, transparent); color: var(--dn); }
+.qb { display: inline-block; min-width: 30px; text-align: center; padding: 2px 7px; border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; cursor: help; }
+.qb.g { background: color-mix(in srgb, var(--up) 16%, transparent); color: var(--up); } .qb.m { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); } .qb.b { background: color-mix(in srgb, var(--dn) 14%, transparent); color: var(--dn); }
+.vr { position: relative; height: 6px; border-radius: 99px; background: var(--color-neutral-800); margin: 12px 0 6px; }
+.vr .zone { position: absolute; top: 0; bottom: 0; border-radius: 99px; background: color-mix(in srgb, var(--up) 35%, transparent); }
+.mkr { position: absolute; top: -4px; width: 3px; height: 14px; border-radius: 2px; transform: translateX(-1px); }
+.mkr.px { background: var(--color-text); height: 18px; top: -6px; width: 4px; } .mkr.bz { background: var(--up); } .mkr.fa { background: var(--warn); } .mkr.lo { background: var(--dn); }
+.mkr.inl { position: static; display: inline-block; vertical-align: middle; margin: 0 2px 0 8px; height: 12px; }
+.vr-l { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--color-neutral-500); }
+.tri-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; } .tri .tk { font-family: var(--font-heading); font-size: 28px; letter-spacing: -.01em; }
+.tri-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.tri-g span { display: block; font-size: 11px; color: var(--color-neutral-400); text-transform: uppercase; letter-spacing: .06em; } .tri-g b { font-size: 17px; font-weight: 500; }
+.why { margin: 14px 0 10px; padding-left: 18px; font-size: 13px; line-height: 1.55; color: var(--color-neutral-300); } .why li { margin-bottom: 4px; }
+.tri.buy { border: 1px solid color-mix(in srgb, var(--up) 40%, transparent); }
+.hchip .x { border: 0; background: transparent; color: var(--color-neutral-400); cursor: pointer; padding: 0 0 0 2px; font-size: 14px; line-height: 1; } .hchip .x:hover { color: var(--dn); }
+.meth p { font-size: 13px; line-height: 1.55; color: var(--color-neutral-300); margin: 10px 0 0; } details > summary { list-style: none; } details > summary::-webkit-details-marker { display: none; }
+.val-t td { vertical-align: middle; }
