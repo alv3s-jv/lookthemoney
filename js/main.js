@@ -8,15 +8,16 @@ import { addMonthsYM, todayISO } from './util.js';
 import { billsForMonth } from './calc.js';
 import * as FIN from './views-fin.js';
 import * as INV from './views-inv.js';
+import { mercado } from './views-mkt.js';
 import * as CFG from './views-config.js';
 import { txForm, accountForm } from './forms-fin.js';
 import { buyForm } from './forms-inv.js';
 
 const FIN_NAV = [['overview', 'Visão geral', 'ph ph-squares-four'], ['tx', 'Receitas e despesas', 'ph ph-arrows-down-up'], ['cards', 'Cartões', 'ph ph-credit-card'], ['bills', 'Contas a pagar', 'ph ph-calendar-check'], ['budget', 'Orçamento', 'ph ph-chart-pie-slice'], ['goals', 'Metas', 'ph ph-flag-pennant'], ['reports', 'Relatórios', 'ph ph-file-text']];
-const INV_NAV = [['resumo', 'Resumo', 'ph ph-squares-four'], ['desempenho', 'Desempenho', 'ph ph-trend-up'], ['posicoes', 'Posições', 'ph ph-wallet'], ['proventos', 'Proventos', 'ph ph-coins'], ['alocacao', 'Alocação', 'ph ph-target']];
+const INV_NAV = [['mercado', 'Mercado', 'ph ph-chart-line'], ['resumo', 'Resumo', 'ph ph-squares-four'], ['desempenho', 'Desempenho', 'ph ph-trend-up'], ['posicoes', 'Posições', 'ph ph-wallet'], ['proventos', 'Proventos', 'ph ph-coins'], ['alocacao', 'Alocação', 'ph ph-target']];
 const VIEWS = {
   fin: { overview: FIN.overview, tx: FIN.tx, cards: FIN.cards, bills: FIN.bills, budget: FIN.budget, goals: FIN.goals, reports: FIN.reports },
-  inv: { resumo: INV.resumo, desempenho: INV.desempenho, posicoes: INV.posicoes, ativo: INV.ativo, proventos: INV.proventos, alocacao: INV.alocacao },
+  inv: { mercado, resumo: INV.resumo, desempenho: INV.desempenho, posicoes: INV.posicoes, ativo: INV.ativo, proventos: INV.proventos, alocacao: INV.alocacao },
 };
 const lastRoute = { fin: 'overview', inv: 'resumo' };
 let param = null, view = null, moreModal = null;
@@ -70,9 +71,16 @@ function render() {
   catch (e) { console.error(e); el.innerHTML = `<div class="panel"><div class="empty"><i class="ph ph-bug"></i><p>Algo deu errado ao montar esta tela.</p><pre class="muted" style="white-space:pre-wrap;font-size:12px">${esc(e.message)}</pre></div></div>`; }
   shell(c);
   if (keep) { const n = el.querySelector(`[data-keep="${keep}"]`); if (n) { n.focus(); try { n.setSelectionRange(selS, selE); } catch { /* ok */ } } }
-  window.scrollTo(0, routeChanged ? 0 : y); routeChanged = false;
+  const routeChangedNow = routeChanged; window.scrollTo(0, routeChanged ? 0 : y); routeChanged = false;
   bindCharts(el);
+  if (routeChangedNow) enterAnim(el);
   view.onMount?.(el, c);
+}
+function enterAnim(el) {
+  const items = el.querySelectorAll('.page-head, .kpi, .panel, .notice, .tape');
+  items.forEach((n, i) => n.style.setProperty('--i', Math.min(i, 14)));
+  el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter');
+  clearTimeout(enterAnim.t); enterAnim.t = setTimeout(() => el.classList.remove('enter'), 1100);
 }
 let routeChanged = false;
 

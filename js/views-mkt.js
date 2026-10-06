@@ -1,0 +1,155 @@
+// Tela "Mercado": painel estilo homebroker com dados do dia (ao vivo), mapa de calor, rankings e análise automática.
+import { app, brapiToken } from './app.js';
+import { esc } from './ui.js';
+import { nf } from './util.js';
+import { head } from './views-fin.js';
+import { marketState, refreshMarket, analyze, sessionStatus, rangePos } from './market.js';
+
+const REFRESH_MS = 90 * 1000;
+const mkt = { tab: 'stocks' };
+let busy = false, lastC = null, timer = null, prev = new Map(), next = new Map();
+
+const pc = (v, d = 2) => (v >= 0 ? '+' : '−') + nf(Math.abs(v), d) + '%';
+const cls = v => (v > 0.005 ? 'up' : v < -0.005 ? 'dn' : '');
+const arrow = v => (v > 0.005 ? '▲' : v < -0.005 ? '▼' : '•');
+const hms = ts => new Date(ts).toLocaleTimeString('pt-BR');
+
+/** Valor com "flash" verde/vermelho quando muda entre atualizações. */
+function live(key, price, html) {
+  next.set(key, price);
+  const was = prev.get(key);
+  const f = was != null && price != null && was !== price ? (price > was ? ' fl-up' : ' fl-dn') : '';
+  return `<span class="lv${f}">${html}</span>`;
+}
+
+const chgPill = v => (v == null ? '<span class="muted">—</span>' : `<span class="pill ${cls(v)}">${arrow(v)} ${pc(v)}</span>`);
+
+function card(label, key, value, chg, extra = '', sub = '') {
+  return `<div class="kpi mk-card"><div class="kpi-l">${label}</div><div class="kpi-v num">${value == null ? '<span class="sk"></span>' : live(key, value.raw, value.html)}</div><div class="kpi-s">${chg == null ? '' : chgPill(chg)}${sub ? ` <span class="muted">${sub}</span>` : ''}</div>${extra}</div>`;
+}
+const rangeBar = (v, lo, hi) => (lo && hi ? `<div class="rng" title="Faixa do dia: ${nf(lo, 4)} – ${nf(hi, 4)}"><i style="left:${(rangePos(v, lo, hi) * 100).toFixed(1)}%"></i></div><div class="rng-l"><span>${nf(lo, hi > 100 ? 0 : 4)}</span><span>${nf(hi, hi > 100 ? 0 : 4)}</span></div>` : '');
+
+function cards(d) {
+  const fx = d?.fx || {}, m = d?.macro, ib = d?.ibov;
+  const bova = (d?.lists?.funds || []).find(s => s.t === 'BOVA11');
+  const out = [];
+  if (ib) out.push(card('Ibovespa', 'ibov', { raw: ib.price, html: nf(ib.price, 0) }, ib.chg, rangeBar(ib.price, ib.low, ib.high), 'pontos'));
+  else if (bova) out.push(card('Ibovespa · via BOVA11', 'bova', { raw: bova.price, html: 'R$ ' + nf(bova.price) }, bova.chg, '', 'ETF de referência'));
+  else out.push(card('Ibovespa', 'ibov', null, null));
+  out.push(card('Dólar', 'usd', fx.usd && { raw: fx.usd.price, html: 'R$ ' + nf(fx.usd.price, 4) }, fx.usd?.chg, fx.usd ? rangeBar(fx.usd.price, fx.usd.low, fx.usd.high) : ''));
+  out.push(card('Euro', 'eur', fx.eur && { raw: fx.eur.price, html: 'R$ ' + nf(fx.eur.price, 4) }, fx.eur?.chg, fx.eur ? rangeBar(fx.eur.price, fx.eur.low, fx.eur.high) : ''));
+  out.push(card('Bitcoin', 'btc', fx.btc && { raw: fx.btc.price, html: 'R$ ' + nf(fx.btc.price, 0) }, fx.btc?.chg, fx.btc ? rangeBar(fx.btc.price, fx.btc.low, fx.btc.high) : ''));
+  out.push(card('Selic meta', 'selic', m?.selic != null ? { raw: m.selic, html: nf(m.selic) + '% a.a.' } : null, null, '', m?.cdi != null ? `CDI ${nf(m.cdi)}% a.a.` : ''));
+  out.push(card('IPCA 12 meses', 'ipca', m?.ipca12 != null ? { raw: m.ipca12, html: nf(m.ipca12) + '%' } : null, null, '', m?.ipcaM != null ? `mês: ${nf(m.ipcaM)}%` : ''));
+  return `<div class="grid g-kpi mk-cards">${out.join('')}</div>`;
+}
+
+function tape(d) {
+  const it = [];
+  const add = (k, label, price, chg, fmt) => { if (price != null) it.push(`<span class="tp"><b>${esc(label)}</b> <span class="num">${fmt(price)}</span> <span class="${cls(chg ?? 0)}">${chg == null ? '' : arrow(chg) + ' ' + pc(chg)}</span></span>`); };
+  if (d?.ibov) add('ibov', 'IBOV', d.ibov.price, d.ibov.chg, v => nf(v, 0));
+  const fx = d?.fx || {};
+  if (fx.usd) add('usd', 'USD/BRL', fx.usd.price, fx.usd.chg, v => nf(v, 4));
+  if (fx.eur) add('eur', 'EUR/BRL', fx.eur.price, fx.eur.chg, v => nf(v, 4));
+  if (fx.btc) add('btc', 'BTC', fx.btc.price, fx.btc.chg, v => nf(v, 0));
+  for (const c of (d?.crypto || []).filter(c => c.sym !== 'BTC').slice(0, 3)) add(c.sym, c.sym, c.price, c.chg, v => nf(v, v >= 100 ? 0 : 2));
+  for (const s of (d?.lists?.stocks || []).slice(0, 14)) add(s.t, s.t, s.price, s.chg, v => nf(v));
+  if (!it.length) return '<div class="tape"><div class="tape-in"><span class="tp muted">Carregando cotações…</span></div></div>';
+  const row = it.join('');
+  return `<div class="tape" aria-label="Cotações em rolagem"><div class="tape-in">${row}${row}</div></div>`;
+}
+
+function heat(list) {
+  const L = [...list].sort((a, b) => b.brl - a.brl).slice(0, 28);
+  if (!L.length) return '<div class="empty"><p>Sem dados.</p></div>';
+  return `<div class="heat">${L.map((s, i) => {
+    const a = Math.min(1, Math.abs(s.chg) / 4);
+    const tone = s.chg >= 0 ? 'var(--up)' : 'var(--dn)';
+    return `<div class="tile ${i < 3 ? 'big' : ''} ${held(s.t) ? 'held' : ''}" style="--a:${(10 + a * 55).toFixed(0)}%;--c:${tone};--i:${i}" title="${esc(s.name || s.t)} · R$ ${nf(s.price)} · ${pc(s.chg)}" ${held(s.t) ? `data-act="open-asset" data-t="${esc(s.t)}"` : ''}><b>${esc(s.t)}</b><span class="num">${pc(s.chg, 2)}</span></div>`;
+  }).join('')}</div>`;
+}
+
+const held = t => !!lastC?.portfolio?.active?.some(h => h.asset.ticker === t);
+
+function rank(title, sub, rows, key) {
+  const mx = Math.max(1, ...rows.map(r => Math.abs(r.chg)));
+  return `<div class="panel"><div class="panel-h"><h3>${title}</h3><span class="sub">${sub}</span></div>${rows.length ? `<table class="table mk-t"><tbody>${rows.map(r => `<tr class="${held(r.t) ? 'clk' : ''}" ${held(r.t) ? `data-act="open-asset" data-t="${esc(r.t)}"` : ''}><td><b>${esc(r.t)}</b>${held(r.t) ? ' <span class="dot-held" title="Na sua carteira"></span>' : ''}<div class="sub-s">${esc((r.name || '').slice(0, 26))}</div></td><td class="r num">${live(key + r.t, r.price, 'R$ ' + nf(r.price))}</td><td class="r"><span class="pill ${cls(r.chg)}">${arrow(r.chg)} ${pc(r.chg)}</span><div class="mbar"><i class="${cls(r.chg)}" style="width:${Math.min(100, Math.abs(r.chg) / mx * 100).toFixed(0)}%"></i></div></td></tr>`).join('')}</tbody></table>` : '<div class="empty"><p>Sem dados no momento.</p></div>'}</div>`;
+}
+
+function rankings(d) {
+  const all = mkt.tab === 'funds' ? d?.lists?.funds : d?.lists?.stocks;
+  const min = mkt.tab === 'funds' ? 1e6 : 5e6;
+  let U = (all || []).filter(s => s.brl >= min); if (U.length < 12) U = all || [];
+  const alt = [...U].sort((a, b) => b.chg - a.chg).slice(0, 8);
+  const bai = [...U].sort((a, b) => a.chg - b.chg).slice(0, 8);
+  const vol = [...(all || [])].sort((a, b) => b.brl - a.brl).slice(0, 8);
+  const volRows = vol.map(s => ({ ...s }));
+  return `<div class="grid g-3 mk-rank">${rank('<i class="ph ph-trend-up up"></i> Maiores altas', `liquidez > R$ ${min / 1e6} mi`, alt, 'a')}${rank('<i class="ph ph-trend-down dn"></i> Maiores baixas', `liquidez > R$ ${min / 1e6} mi`, bai, 'b')}${rank('<i class="ph ph-fire"></i> Mais negociados', 'giro financeiro', volRows, 'v')}</div>`;
+}
+
+function cryptoPanel(d) {
+  const L = d?.crypto || [];
+  return `<div class="panel"><div class="panel-h"><h3>Criptomoedas</h3><span class="sub">top 10 por valor de mercado · 24 h</span></div>${L.length ? `<table class="table mk-t"><thead><tr><th>Ativo</th><th class="r">Preço</th><th class="r">24 h</th><th class="r">Valor de mercado</th></tr></thead><tbody>${L.map(c => `<tr><td><b>${esc(c.sym)}</b> <span class="muted">${esc(c.name)}</span></td><td class="r num">${live('c' + c.sym, c.price, 'R$ ' + nf(c.price, c.price >= 100 ? 0 : 2))}</td><td class="r"><span class="pill ${cls(c.chg ?? 0)}">${arrow(c.chg ?? 0)} ${pc(c.chg ?? 0)}</span></td><td class="r num muted">R$ ${nf((c.cap || 0) / 1e9, 0)} bi</td></tr>`).join('')}</tbody></table>` : '<div class="empty"><p>Sem dados no momento.</p></div>'}</div>`;
+}
+
+function analysisPanel(d) {
+  const items = analyze(d, lastC?.portfolio);
+  return `<div class="panel mk-an"><div class="panel-h"><h3>Análise do dia</h3><span class="sub">gerada automaticamente a partir dos dados acima</span></div>${items.length ? `<div class="an-list">${items.map((x, i) => `<div class="an ${x.tone}" style="--i:${i}"><i class="ph ${x.icon}"></i><div><b>${esc(x.title)}</b><p>${esc(x.text)}</p></div></div>`).join('')}</div>` : '<div class="empty"><p>Carregando dados do dia…</p></div>'}<div class="hint">Resumo descritivo de dados públicos, com atraso possível. Não é recomendação de investimento nem projeção.</div></div>`;
+}
+
+function myDay(c) {
+  const P = c.portfolio, hs = (P?.active || []).filter(h => h.prevClose && h.price != null).sort((a, b) => b.dayPct - a.dayPct);
+  if (!hs.length) return `<div class="panel"><div class="panel-h"><h3>Minha carteira hoje</h3></div><div class="empty"><p>Sem posições com cotação do dia. ${c.assets?.length ? 'Atualize as cotações.' : 'Registre uma compra para acompanhar aqui.'}</p></div></div>`;
+  return `<div class="panel"><div class="panel-h"><h3>Minha carteira hoje</h3><span class="sub">${P.dayValue >= 0 ? '+' : '−'}R$ ${nf(Math.abs(P.dayValue))} · ${pc(P.dayPct * 100)}</span></div><table class="table mk-t"><tbody>${hs.slice(0, 8).map(h => `<tr class="clk" data-act="open-asset" data-t="${esc(h.asset.ticker)}"><td><b>${esc(h.asset.ticker)}</b></td><td class="r num">${live('h' + h.asset.ticker, h.price, nf(h.price))}</td><td class="r"><span class="pill ${cls(h.dayPct)}">${arrow(h.dayPct)} ${pc(h.dayPct * 100)}</span></td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function body(c) {
+  const d = marketState.data;
+  next = new Map();
+  const noTok = !brapiToken();
+  const html = `${cards(d)}
+    ${noTok ? '<div class="notice" style="margin-bottom:14px"><i class="ph ph-info"></i><span>Sem token da brapi: o Ibovespa aparece via ETF BOVA11 e as listas usam o plano aberto. Cole seu token (grátis) em <a href="#/config">Configurações</a> para ver os pontos do índice.</span></div>' : ''}
+    <div class="grid g-2 mk-main">${analysisPanel(d)}<div class="stack">${myDay(c)}${cryptoPanel(d)}</div></div>
+    <div class="panel" style="margin-bottom:14px"><div class="panel-h"><h3>Mapa de calor</h3><span class="sub">tamanho ≈ giro financeiro · cor = variação do dia · ${mkt.tab === 'funds' ? 'FIIs e ETFs' : 'ações'}</span></div>${heat(mkt.tab === 'funds' ? d?.lists?.funds || [] : d?.lists?.stocks || [])}</div>
+    <div class="mk-sec"><div class="chips" style="margin:6px 0 12px"><button class="chip ${mkt.tab === 'stocks' ? 'on' : ''}" data-act="mkt-tab" data-v="stocks">Ações</button><button class="chip ${mkt.tab === 'funds' ? 'on' : ''}" data-act="mkt-tab" data-v="funds">FIIs e ETFs</button></div>${rankings(d)}</div>`;
+  prev = next;
+  return html;
+}
+
+const status = () => {
+  const s = sessionStatus(), st = marketState;
+  return `<span class="live ${s.open ? 'on' : ''}"><i></i>${s.label}</span><button class="stamp" data-act="mkt-refresh"><i class="ph ph-arrows-clockwise ${busy ? 'spin' : ''}"></i> ${st.data?.ts ? 'Atualizado às ' + hms(st.data.ts) : 'Atualizar'}${st.errors.length ? ' <i class="ph ph-warning warn" title="' + esc(st.errors.join(' · ')) + '"></i>' : ''}</button>`;
+};
+
+function paint() {
+  const root = document.getElementById('mkt'); if (!root) { clearInterval(timer); timer = null; return; }
+  root.querySelector('#mkt-tape').innerHTML = tape(marketState.data);
+  root.querySelector('#mkt-body').innerHTML = body(lastC);
+  const st = document.getElementById('mkt-status'); if (st) st.innerHTML = status();
+}
+
+async function kick(force = false) {
+  if (document.hidden && !force) return;
+  busy = true; const st = document.getElementById('mkt-status'); if (st) st.innerHTML = status();
+  try { await refreshMarket({ token: brapiToken(), force }); } finally { busy = false; }
+  paint();
+}
+
+export const mercado = {
+  title: 'Mercado',
+  render(c) {
+    lastC = c;
+    const d = marketState.data;
+    return `<div id="mkt">${head('Mercado', 'Cotações e análise do dia · atualização automática a cada 90 s', `<div id="mkt-status" class="row" style="gap:10px">${status()}</div>`)}<div id="mkt-tape">${tape(d)}</div><div id="mkt-body">${body(c)}</div></div>`;
+  },
+  onMount(el, c) {
+    lastC = c;
+    if (!timer) timer = setInterval(() => kick(false), REFRESH_MS);
+    const age = marketState.data?.ts ? Date.now() - marketState.data.ts : Infinity;
+    if (age > 45 * 1000 && !busy) kick(false);
+  },
+  actions: {
+    'mkt-tab': el => { mkt.tab = el.dataset.v; return true; },
+    'mkt-refresh': () => { kick(true); },
+  },
+};
