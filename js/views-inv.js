@@ -11,6 +11,7 @@ import {
 import { UP, DN, WARN, INDEXERS, APORTE_CAT } from './meta.js';
 import { buyForm, dividendForm, assetForm, targetsForm, deleteInvestTx } from './forms-inv.js';
 import { head } from './views-fin.js';
+import { agendaFor, AGENDA_DATE, AGENDA_STALE_DAYS, staleDays as agendaStale } from './agenda.js';
 import {
   fmtDate, fmtDM, ymShort, MONTHS_SHORT, addMonthsISO, addMonthsYM, sum, groupBy, nf, parseNum, todayISO, uid, round2, daysBetween, addDays,
 } from './util.js';
@@ -46,6 +47,17 @@ function perfData(c) {
   const hyp = (s0?.value || 0) * c.cdi.factor(d0, c.today) + sum(flows, f => f.amount * c.cdi.factor(f.date, c.today));
   return { pts, port: last.port, cdi: last.cdi, pctCdi: pctOfCdi(last.port, last.cdi), extra: c.portfolio.total - hyp, d0, est: pts.some(p => p.est) };
 }
+
+/** Conferência em R$ (independe do histórico diário): se divergir do TWR em sinal, o histórico estimado está distorcido. */
+function confer(c, pd) {
+  const P = c.portfolio, inv = sum(c.flows, f => f.amount), gain = P.total - inv, ret = gain + P.prov;
+  const bad = (gain > 1 && pd.port < -0.02) || (gain < -1 && pd.port > 0.02) || pd.port < -0.95;
+  return `<div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Conferência em R$</h3><span class="sub">cálculo direto, sem histórico diário</span></div>
+    <div class="grid g-kpi">${kpi({ label: 'Aportado (líquido)', value: money(inv, 0) })}${kpi({ label: 'Patrimônio hoje', value: money(P.total, 0) })}${kpi({ label: 'Ganho de capital', value: gainMoney(gain, 0), hint: inv > 0 ? pct(gain / inv, 2) + ' sobre o aportado' : '' })}${kpi({ label: 'Proventos recebidos', value: money(P.prov, 0), hint: `retorno total ${gainMoney(ret, 0)}` })}</div>
+    ${bad ? '<div class="notice warn" style="margin-top:10px"><i class="ph ph-warning"></i><span>O gráfico (TWR) contradiz o ganho em R$ acima — o histórico diário está distorcido. Clique em <b>Recalcular histórico</b>; se persistir, me avise.</span></div>' : ''}
+    <div class="hint" style="margin-top:8px">Como ler: o ganho em R$ soma tudo o que você colocou e o que vale hoje. A rentabilidade (TWR) remove o efeito dos aportes para comparar com o CDI — por isso um aporte grande recente não "melhora" nem "piora" o percentual.</div></div>`;
+}
+
 const periodChips = () => `<div class="chips">${Object.keys(PERIODS).map(p => `<button class="chip ${app.period === p ? 'on' : ''}" data-act="period" data-v="${p}">${p}</button>`).join('')}</div>`;
 
 // =============================================================================================== Resumo
@@ -84,6 +96,7 @@ export const desempenho = {
     const estN = c.snaps.filter(s => s.est).length;
     return `${invHead(c, 'Desempenho', 'Carteira vs CDI — cotização (TWR): aportes e resgates não contam como rendimento', `<button class="btn btn-secondary" data-act="rebuild"><i class="ph ph-clock-counter-clockwise"></i> Recalcular histórico</button>`)}
     ${pd ? `<div class="grid g-kpi">${kpi({ label: 'Carteira', value: pct(pd.port, 2), hint: `desde ${fmtDate(pd.d0)}` })}${kpi({ label: 'CDI', value: pct(pd.cdi, 2) })}${kpi({ label: '% do CDI', value: pd.pctCdi == null ? '—' : nf(pd.pctCdi, 0) + '%', sub: pd.pctCdi == null ? '' : pd.pctCdi >= 100 ? gain(1, 'acima do CDI') : gain(-1, 'abaixo do CDI') })}${kpi({ label: 'R$ a mais que o CDI', value: gainMoney(pd.extra, 0), hint: pd.est ? 'ponderado por dinheiro · histórico estimado' : 'vs. cada aporte rendendo 100% do CDI' })}</div>` : ''}
+    ${pd ? confer(c, pd) : ''}
     <div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Rentabilidade acumulada</h3>${periodChips()}</div>${pd ? perfChart(pd.pts) : empty('Ainda não há histórico suficiente.')}${estN ? `<div class="hint" style="margin-top:8px">${estN} dia(s) do histórico são estimados (sem cotação histórica disponível, o valor é carregado do dia anterior). Eles se corrigem sozinhos conforme o app é aberto diariamente.</div>` : ''}</div>
     <div class="panel"><div class="panel-h"><h3>Rentabilidade mês a mês</h3><span class="sub">a barra mostra a carteira; o traço claro, o CDI do mesmo mês</span></div>
       ${mr.length ? `<div class="tw"><table class="table"><thead><tr><th>Mês</th><th class="r">Carteira</th><th class="r">CDI</th><th class="r">% do CDI</th><th style="width:34%">Carteira vs CDI</th></tr></thead><tbody>${mr.map(m => `<tr><td>${ymShort(m.ym)}</td><td class="r num">${gainPct(m.port, 2)}</td><td class="r num">${pct(m.cdi, 2)}</td><td class="r num">${m.pctCdi == null ? '—' : nf(m.pctCdi, 0) + '%'}</td><td><div style="position:relative;height:10px;background:var(--color-neutral-800);border-radius:99px"><div style="position:absolute;left:0;top:0;bottom:0;width:${Math.max(1, Math.abs(m.port) / maxAbs * 100)}%;background:${m.port >= 0 ? 'var(--color-accent)' : DN};border-radius:99px"></div><div style="position:absolute;top:-3px;bottom:-3px;left:${Math.abs(m.cdi) / maxAbs * 100}%;width:2px;background:var(--color-text)"></div></div></td></tr>`).join('')}</tbody></table></div>` : empty('Sem meses fechados ainda.')}</div>`;
@@ -179,6 +192,24 @@ export const ativo = {
 
 // =============================================================================================== Proventos
 const PV = { asset: '' };
+let AG = [];
+function agendaPanel(c) {
+  AG = agendaFor(c.assets, c.investTx || store.get('investTx'), c.dividends, c.today);
+  const held = new Set(c.assets.filter(a => a.assetClass !== 'RENDA_FIXA').map(a => a.ticker.toUpperCase()));
+  const noInfo = [...(c.portfolio?.active || [])].filter(h => h.asset.assetClass !== 'RENDA_FIXA' && !AG.some(x => x.t === h.asset.ticker.toUpperCase())).map(h => h.asset.ticker);
+  const up = AG.filter(x => !x.paid), paid = AG.filter(x => x.paid);
+  const sumNet = l => l.reduce((s, x) => s + x.net, 0);
+  const row = (x, i) => `<tr><td><b>${esc(x.t)}</b><div class="sub-s">${esc(x.note)}</div></td><td>${x.type === 'JCP' ? 'JCP' : 'Dividendo'}</td><td class="r num">${nf(x.ps, 4)}</td><td class="r num">${qtyFmt(x.qty)}</td><td class="r num">${money(x.gross)}</td><td class="r num"><b>${money(x.net)}</b></td><td class="r">${fmtDate(x.com)}</td><td class="r"><b>${fmtDate(x.pay)}</b></td><td class="r">${x.logged ? '<span class="pill up">lançado</span>' : `<button class="btn btn-secondary sm" data-act="launch-div" data-i="${i}">Lançar</button>`}</td></tr>`;
+  const tbl = (l) => `<div class="tw"><table class="table"><thead><tr><th>Ativo</th><th>Tipo</th><th class="r">R$/ação (bruto)</th><th class="r">Ações na data com</th><th class="r">Bruto</th><th class="r">Líquido</th><th class="r">Data com</th><th class="r">Pagamento</th><th></th></tr></thead><tbody>${l.map(x => row(x, AG.indexOf(x))).join('')}</tbody></table></div>`;
+  const old = agendaStale() > AGENDA_STALE_DAYS;
+  return `<div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Próximos proventos anunciados</h3><span class="sub">${up.length ? `${money(sumNet(up), 2)} líquidos a receber` : 'nada anunciado para suas ações'}</span></div>
+    ${old ? `<div class="notice warn" style="margin-bottom:10px"><i class="ph ph-warning"></i><span>Agenda de ${fmtDate(AGENDA_DATE)} — pode estar desatualizada; novos anúncios saem com os resultados trimestrais.</span></div>` : ''}
+    ${up.length ? tbl(up) : '<div class="empty"><p>Nenhum provento anunciado e ainda não pago para os papéis que você tem.</p></div>'}
+    ${paid.length ? `<div class="hint" style="margin:12px 0 6px"><b>Pagos recentemente</b> — confira se estão lançados no extrato (${money(sumNet(paid), 2)} líquidos):</div>${tbl(paid)}` : ''}
+    ${noInfo.length ? `<div class="hint" style="margin-top:10px">Sem anúncio vigente na agenda para: <b>${noInfo.map(esc).join(', ')}</b>. Isso não significa que não pagarão: ações costumam declarar após os balanços trimestrais (fim de outubro/novembro e fevereiro/março), e FIIs pagam rendimento mensal.</div>` : ''}
+    <div class="hint" style="margin-top:8px">Valores anunciados pelas empresas (fontes: imprensa financeira); a quantidade usa sua posição na data com (comprou até a data com = tem direito). Líquido desconta 15% de IR sobre JCP. Datas podem mudar.</div></div>`;
+}
+
 export const proventos = {
   title: 'Proventos',
   render(c) {
@@ -193,13 +224,14 @@ export const proventos = {
     const colors = { Dividendo: 'var(--color-accent-300)', JCP: 'var(--color-accent-600)', 'Rendimento FII': 'var(--color-accent)' };
     const list = rec.filter(d => !PV.asset || d.assetId === PV.asset);
     return `${invHead(c, 'Proventos', 'Dividendos, JCP e rendimentos de FIIs', `<button class="btn btn-secondary" data-act="new-div"><i class="ph ph-plus"></i> Lançar provento</button>`)}
+    ${agendaPanel(c)}
     <div class="grid g-kpi">${kpi({ label: 'Últimos 12 meses', value: money(v12, 0) })}${kpi({ label: 'Média mensal', value: money(v12 / 12, 0) })}${kpi({ label: 'Yield on cost', value: pctPlain(yoc, 1), hint: '12 meses ÷ custo atual da carteira' })}${kpi({ label: 'A receber', value: money(sum(fut, d => +d.amount), 0), sub: `${fut.length} lançamento${fut.length === 1 ? '' : 's'}` })}</div>
     <div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Proventos por mês</h3><div class="legend">${Object.entries(colors).map(([k, v]) => `<span><i class="sw" style="background:${v}"></i>${k}</span>`).join('')}</div></div>${stackedBars(cols, colors)}</div>
     <div class="panel"><div class="panel-h"><h3>Extrato de proventos</h3><select class="input sm" data-f="passet" style="width:auto" aria-label="Filtrar ativo"><option value="">Todos os ativos</option>${options(c.assets.filter(a => a.assetClass !== 'RENDA_FIXA').map(a => [a.id, a.ticker]), PV.asset)}</select></div>
       ${list.length || fut.length ? `<div class="tw"><table class="table"><thead><tr><th>Pagamento</th><th>Ativo</th><th>Tipo</th><th class="r">Por cota</th><th class="r">Cotas</th><th class="r">Recebido</th><th></th></tr></thead><tbody>${[...fut.filter(d => !PV.asset || d.assetId === PV.asset).reverse(), ...list].map(d => `<tr class="clk" data-act="edit-div" data-id="${d.id}"><td>${fmtDate(d.payDate)}${d.payDate > c.today ? ' <span class="tag tag-outline">a receber</span>' : ''}</td><td><span class="tick">${esc(A[d.assetId].ticker)}</span></td><td>${typeName[d.type]}</td><td class="r num">${nf(d.perShare, 4)}</td><td class="r num">${qtyFmt(d.quantity)}</td><td class="r num">${money(d.amount)}</td><td class="r"><button class="iconbtn" data-act="edit-div" data-id="${d.id}" aria-label="Editar"><i class="ph ph-pencil-simple"></i></button></td></tr>`).join('')}</tbody></table></div><div class="hint" style="margin-top:8px">JCP aparece líquido, já descontado o IR de 15%. Lançamentos com data futura ficam como “a receber”.</div>` : empty('Nenhum provento lançado ainda.', `<button class="btn btn-primary btn-sm" data-act="new-div">Lançar provento</button>`)}</div>`;
   },
   onChange(e) { if (e.target.dataset.f === 'passet') { PV.asset = e.target.value; return true; } },
-  actions: { 'edit-div': el => dividendForm(store.find('dividends', el.dataset.id)) },
+  actions: { 'edit-div': el => dividendForm(store.find('dividends', el.dataset.id)), 'launch-div': el => { const x = AG[+el.dataset.i]; if (x) dividendForm(null, x.assetId, { type: x.type, payDate: x.pay, perShare: x.ps, quantity: x.qty }); } },
 };
 
 // =============================================================================================== Alocação

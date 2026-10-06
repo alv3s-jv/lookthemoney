@@ -158,23 +158,23 @@ export async function deleteInvestTx(tx) {
 }
 
 // ----------------------------------------------------------------------------- proventos
-export function dividendForm(div = null, assetId = null) {
+export function dividendForm(div = null, assetId = null, pre = null) {
   const c = getCtx(); const edit = !!div;
   const list = c.assets.filter(a => a.assetClass !== 'RENDA_FIXA');
   if (!list.length) { toast('Registre uma compra antes de lançar proventos.', { kind: 'error' }); return; }
   const a0 = div?.assetId || assetId || list[0].id;
   const body = `<form id="df" class="stack" style="gap:12px" novalidate><div class="form-grid">
     ${field('Ativo', `<select class="input" name="assetId">${options(list.map(a => [a.id, `${a.ticker} · ${a.name}`]), a0)}</select>`, { cls: 'span2' })}
-    ${field('Tipo', `<select class="input" name="type">${options([['DIVIDENDO', 'Dividendo'], ['JCP', 'JCP (IR 15%)'], ['RENDIMENTO', 'Rendimento (FII)']], div?.type || 'DIVIDENDO')}</select>`)}
-    ${field('Data de pagamento', `<input class="input" type="date" name="payDate" value="${div?.payDate || todayISO()}">`)}
-    ${field('Valor por cota (R$)', `<input class="input num-in" name="perShare" inputmode="decimal" value="${div ? nf(div.perShare, 4) : ''}" placeholder="0,00">`)}
-    ${field('Cotas na data', `<input class="input num-in" name="quantity" inputmode="decimal" value="${div ? qtyFmt(div.quantity) : ''}">`)}
+    ${field('Tipo', `<select class="input" name="type">${options([['DIVIDENDO', 'Dividendo'], ['JCP', 'JCP (IR 15%)'], ['RENDIMENTO', 'Rendimento (FII)']], div?.type || pre?.type || 'DIVIDENDO')}</select>`)}
+    ${field('Data de pagamento', `<input class="input" type="date" name="payDate" value="${div?.payDate || pre?.payDate || todayISO()}">`)}
+    ${field('Valor por cota (R$)', `<input class="input num-in" name="perShare" inputmode="decimal" value="${div ? nf(div.perShare, 4) : pre?.perShare ? nf(pre.perShare, 6) : ''}" placeholder="0,00">`)}
+    ${field('Cotas na data', `<input class="input num-in" name="quantity" inputmode="decimal" value="${div ? qtyFmt(div.quantity) : pre?.quantity ? qtyFmt(pre.quantity) : ''}">`)}
   </div><div class="preview" id="dpv"></div><div id="dErr"></div></form>`;
   openModal({
     title: edit ? 'Editar provento' : 'Lançar provento', body,
     actions: `${edit ? '<button class="btn btn-secondary btn-danger" data-del style="margin-right:auto">Excluir</button>' : ''}<button class="btn btn-secondary" data-close>Cancelar</button><button class="btn btn-primary" data-save>Salvar</button>`,
     onMount: api => {
-      const f = api.q('#df'); let qtyTouched = edit;
+      const f = api.q('#df'); let qtyTouched = edit || !!pre?.quantity;
       const asset = () => store.find('assets', f.assetId.value);
       const autoQty = () => { if (qtyTouched) return; const a = asset(); const p = position(adj(a, assetTxs(a.id)), f.payDate.value || todayISO()); f.quantity.value = p.qty ? qtyFmt(p.qty) : ''; };
       const calc = () => { const ps = parseNum(f.perShare.value), q = parseNum(f.quantity.value), gross = ps * q; const net = netDividend(f.type.value, gross); api.q('#dpv').innerHTML = gross > 0 ? `<div class="pv num"><span>Bruto</span><b>${money(gross)}</b>${f.type.value === 'JCP' ? `<span>IR retido (15%)</span><b>−${money(gross - net)}</b>` : ''}<span>Líquido recebido</span><b>${money(net)}</b></div>` : '<span class="muted">Informe o valor por cota para ver o total.</span>'; };
