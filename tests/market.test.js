@@ -28,3 +28,14 @@ test('sessionStatus e rangePos', () => {
   assert.equal(sessionStatus(new Date('2026-10-10T15:00:00Z')).open, false); // sábado
   assert.equal(rangePos(5, 4, 6), 0.5); assert.equal(rangePos(9, 4, 6), 1);
 });
+
+import { topN, HOUSES, CONSENSUS } from '../js/reco.js';
+test('topN: ranking consolidado e desempates', () => {
+  const r = topN();
+  assert.equal(r.length, 10);
+  assert.deepEqual(r.slice(0, 4).map(x => x.t).sort(), ['EMBJ3', 'ITUB4', 'PETR4', 'SBSP3']); // 3 casas cada
+  assert.ok(r.slice(0, 4).every(x => x.n === 3));
+  assert.deepEqual(r.slice(4, 6).map(x => x.t), ['VALE3', 'GGBR4']); // 2 casas, desempate pelo consenso (6 e 5)
+  assert.ok(r.every((x, i) => i === 0 || r[i - 1].n >= x.n));
+  assert.ok(HOUSES.every(h => h.items.length && h.url.startsWith('https://')) && CONSENSUS.total === 10);
+});

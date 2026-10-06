@@ -306,3 +306,19 @@ input[type=date].input { color-scheme: dark; }
 @media (max-width: 767px) { .tile.big { grid-column: span 1; height: 66px; } .mbar { width: 60px; } }
 
 .mk-rank { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+
+/* ------------------------------------------------------------ recomendações */
+.tscroll { overflow-x: auto; }
+.reco-t td, .reco-t th { vertical-align: middle; }
+.reco-t td.rk { font-family: var(--font-heading); font-size: 18px; color: var(--color-accent-300); width: 36px; }
+.reco-t td.thesis { white-space: normal; min-width: 240px; max-width: 340px; font-size: 12.5px; color: var(--color-neutral-300); line-height: 1.45; }
+.hchips { display: flex; flex-wrap: wrap; gap: 4px; }
+.hchip { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--color-accent) 14%, transparent); color: var(--color-accent-200); white-space: nowrap; }
+.hchip.part { background: transparent; border: 1px dashed var(--color-neutral-600); color: var(--color-neutral-400); }
+.hchip.big { display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 10px; font-size: 12px; background: color-mix(in srgb, var(--color-text) 6%, transparent); color: var(--color-text); }
+.hchip.big i { font-style: normal; font-size: 10.5px; color: var(--color-neutral-400); } .hchip.big.held { outline: 1.5px solid var(--color-accent); }
+.mk-h2 { font-size: 13px; letter-spacing: .07em; text-transform: uppercase; color: var(--color-neutral-400); margin: 6px 2px 10px; }
+.mk-houses { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.house .hnote { font-size: 12px; color: var(--color-neutral-400); margin: 10px 0 8px; line-height: 1.45; }
+.src { font-size: 12px; color: var(--color-accent-300); text-decoration: none; display: inline-flex; gap: 5px; align-items: center; } .src:hover { text-decoration: underline; }
+.page.enter .reco, .page.enter .house { animation: rise .5s ease both; animation-delay: calc(var(--i, 0) * 45ms); }

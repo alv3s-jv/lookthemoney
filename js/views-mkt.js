@@ -3,6 +3,9 @@ import { app, brapiToken } from './app.js';
 import { esc } from './ui.js';
 import { nf } from './util.js';
 import { head } from './views-fin.js';
+import { NAMES } from './reco.js';
+import { HOUSES, CONSENSUS, RECO_DATE, RECO_STALE_DAYS, topN, staleDays } from './reco.js';
+import { fmtDate } from './util.js';
 import { marketState, refreshMarket, analyze, sessionStatus, rangePos } from './market.js';
 
 const REFRESH_MS = 90 * 1000;
@@ -79,12 +82,12 @@ function rank(title, sub, rows, key) {
 function rankings(d) {
   const all = mkt.tab === 'funds' ? d?.lists?.funds : d?.lists?.stocks;
   const min = mkt.tab === 'funds' ? 1e6 : 5e6;
-  let U = (all || []).filter(s => s.brl >= min); if (U.length < 12) U = all || [];
+  let U = (all || []).filter(s => s.brl >= min && s.price >= 1); if (U.length < 12) U = all || [];
   const alt = [...U].sort((a, b) => b.chg - a.chg).slice(0, 8);
   const bai = [...U].sort((a, b) => a.chg - b.chg).slice(0, 8);
   const vol = [...(all || [])].sort((a, b) => b.brl - a.brl).slice(0, 8);
   const volRows = vol.map(s => ({ ...s }));
-  return `<div class="grid g-3 mk-rank">${rank('<i class="ph ph-trend-up up"></i> Maiores altas', `liquidez > R$ ${min / 1e6} mi`, alt, 'a')}${rank('<i class="ph ph-trend-down dn"></i> Maiores baixas', `liquidez > R$ ${min / 1e6} mi`, bai, 'b')}${rank('<i class="ph ph-fire"></i> Mais negociados', 'giro financeiro', volRows, 'v')}</div>`;
+  return `<div class="grid g-3 mk-rank">${rank('<i class="ph ph-trend-up up"></i> Maiores altas', `liquidez > R$ ${min / 1e6} mi · preço ≥ R$ 1`, alt, 'a')}${rank('<i class="ph ph-trend-down dn"></i> Maiores baixas', `liquidez > R$ ${min / 1e6} mi · preço ≥ R$ 1`, bai, 'b')}${rank('<i class="ph ph-fire"></i> Mais negociados', 'giro financeiro', volRows, 'v')}</div>`;
 }
 
 function cryptoPanel(d) {
@@ -103,12 +106,43 @@ function myDay(c) {
   return `<div class="panel"><div class="panel-h"><h3>Minha carteira hoje</h3><span class="sub">${P.dayValue >= 0 ? '+' : '−'}R$ ${nf(Math.abs(P.dayValue))} · ${pc(P.dayPct * 100)}</span></div><table class="table mk-t"><tbody>${hs.slice(0, 8).map(h => `<tr class="clk" data-act="open-asset" data-t="${esc(h.asset.ticker)}"><td><b>${esc(h.asset.ticker)}</b></td><td class="r num">${live('h' + h.asset.ticker, h.price, nf(h.price))}</td><td class="r"><span class="pill ${cls(h.dayPct)}">${arrow(h.dayPct)} ${pc(h.dayPct * 100)}</span></td></tr>`).join('')}</tbody></table></div>`;
 }
 
+const houseChip = h => `<span class="hchip ${h.partial ? 'part' : ''}" title="${esc(h.short)}${h.w != null ? ' · ' + h.w + '%' : h.partial ? ' · aumento de posição (composição restrita)' : ''}">${esc(h.short)}</span>`;
+const lookup = (d, t) => (d?.lists?.stocks || []).find(s => s.t === t) || (d?.lists?.funds || []).find(s => s.t === t) || null;
+
+function recoSection(d) {
+  const rows = topN();
+  const old = staleDays() > RECO_STALE_DAYS;
+  const maxN = Math.max(...rows.map(r => r.n));
+  const tbl = rows.map(r => {
+    const q = lookup(d, r.t), up = r.fair && q ? r.fair / q.price - 1 : null;
+    return `<tr class="${held(r.t) ? 'clk' : ''}" ${held(r.t) ? `data-act="open-asset" data-t="${esc(r.t)}"` : ''}>
+      <td class="rk">${r.rank}</td>
+      <td><b>${esc(r.t)}</b>${held(r.t) ? ' <span class="dot-held" title="Na sua carteira"></span>' : ''}<div class="sub-s">${esc(r.name)}</div></td>
+      <td><div class="hchips">${r.houses.map(houseChip).join('')}</div></td>
+      <td class="r"><b class="num">${r.n}</b><span class="muted"> / ${HOUSES.length}</span><div class="mbar" style="width:70px"><i class="up" style="width:${(r.n / maxN * 100).toFixed(0)}%;background:var(--color-accent)"></i></div></td>
+      <td class="r num">${r.cons ? `${r.cons}<span class="muted"> / ${CONSENSUS.total}</span>` : '<span class="muted">—</span>'}</td>
+      <td class="r num">${q ? live('r' + r.t, q.price, 'R$ ' + nf(q.price)) : '<span class="muted">—</span>'}</td>
+      <td class="r">${q ? `<span class="pill ${cls(q.chg)}">${arrow(q.chg)} ${pc(q.chg)}</span>` : '<span class="muted">—</span>'}</td>
+      <td class="r num">${r.fair ? `R$ ${nf(r.fair)}${up != null ? `<div class="sub-s ${cls(up)}">${pc(up * 100, 1)} vs. hoje</div>` : ''}` : '<span class="muted">—</span>'}</td>
+      <td class="thesis">${esc(r.thesis)}</td></tr>`;
+  }).join('');
+  const cards = HOUSES.map(h => `<div class="panel house"><div class="panel-h"><h3>${esc(h.name)}</h3><span class="sub">${fmtDate(h.date)}</span></div><div class="sub-s" style="margin:-6px 0 8px">${esc(h.carteira)}${h.partial ? ' · parcial' : ''}</div><div class="hchips">${h.items.map(([t, w]) => `<span class="hchip big ${held(t) ? 'held' : ''}" title="${esc(NAMES_OF(t))}"><b>${esc(t)}</b>${w != null ? `<i>${w}%</i>` : ''}</span>`).join('')}</div><p class="hnote">${esc(h.note)}</p><a class="src" href="${esc(h.url)}" target="_blank" rel="noopener noreferrer"><i class="ph ph-arrow-square-out"></i> Fonte</a></div>`).join('');
+  return `<div class="panel reco" style="margin-bottom:14px"><div class="panel-h"><h3><i class="ph ph-medal"></i> Top 10 ações mais recomendadas</h3><span class="sub">consolidado de ${HOUSES.length} carteiras de casas de análise · outubro/2026 · atualizado em ${fmtDate(RECO_DATE)}</span></div>
+    ${old ? `<div class="notice warn" style="margin-bottom:12px"><i class="ph ph-warning"></i><span>Estes dados têm ${staleDays()} dias. As carteiras mudam todo mês: confira as fontes antes de usar.</span></div>` : ''}
+    <div class="tscroll"><table class="table mk-t reco-t"><thead><tr><th>#</th><th>Ativo</th><th>Casas que recomendam</th><th class="r">Casas</th><th class="r" title="${esc(CONSENSUS.houses)}">Consenso InfoMoney</th><th class="r">Preço</th><th class="r">Dia</th><th class="r">Preço-justo Itaú BBA</th><th>Tese</th></tr></thead><tbody>${tbl}</tbody></table></div>
+    <div class="hint">Ordem: nº de carteiras em que o papel aparece; desempate pelo consenso de 10 casas do InfoMoney (${fmtDate(CONSENSUS.date)}) e depois pelo peso médio. Preço e variação do dia são ao vivo. Compare sempre com a data de cada carteira abaixo.</div></div>
+  <div class="mk-h2">Carteiras por casa</div><div class="grid mk-houses">${cards}</div>
+  <div class="notice" style="margin:14px 0"><i class="ph ph-info"></i><span><b>Suno e Investidor10:</b> as carteiras próprias da Suno são pagas e não entram aqui; o consenso do InfoMoney e a lista de casas acima cobrem o mesmo universo. O Investidor10 não publica carteira recomendada: ele ordena ações por indicadores, veja o <a href="https://investidor10.com.br/acoes/rankings/buy-and-hold/" target="_blank" rel="noopener noreferrer">ranking Buy and Hold</a>. Recomendações de terceiros, informativas, sem considerar seu perfil, e não constituem recomendação personalizada de investimento.</span></div>`;
+}
+const NAMES_OF = t => NAMES[t] || '';
+
 function body(c) {
   const d = marketState.data;
   next = new Map();
   const noTok = !brapiToken();
   const html = `${cards(d)}
     ${noTok ? '<div class="notice" style="margin-bottom:14px"><i class="ph ph-info"></i><span>Sem token da brapi: o Ibovespa aparece via ETF BOVA11 e as listas usam o plano aberto. Cole seu token (grátis) em <a href="#/config">Configurações</a> para ver os pontos do índice.</span></div>' : ''}
+    ${recoSection(d)}
     <div class="grid g-2 mk-main">${analysisPanel(d)}<div class="stack">${myDay(c)}${cryptoPanel(d)}</div></div>
     <div class="panel" style="margin-bottom:14px"><div class="panel-h"><h3>Mapa de calor</h3><span class="sub">tamanho ≈ giro financeiro · cor = variação do dia · ${mkt.tab === 'funds' ? 'FIIs e ETFs' : 'ações'}</span></div>${heat(mkt.tab === 'funds' ? d?.lists?.funds || [] : d?.lists?.stocks || [])}</div>
     <div class="mk-sec"><div class="chips" style="margin:6px 0 12px"><button class="chip ${mkt.tab === 'stocks' ? 'on' : ''}" data-act="mkt-tab" data-v="stocks">Ações</button><button class="chip ${mkt.tab === 'funds' ? 'on' : ''}" data-act="mkt-tab" data-v="funds">FIIs e ETFs</button></div>${rankings(d)}</div>`;
