@@ -94,7 +94,7 @@ export const tx = {
     const days = groupBy(shown, t => t.date);
     const cats = [...new Set(c.txs.map(t => t.category))].sort();
     const rowHtml = t => {
-      const future = t.date > c.today, inc = t.kind === 'receita', ap = t.kind === 'aporte', neutral = t.kind === 'fatura' || t.kind === 'resgate' || t.kind === 'transferencia';
+      const future = t.date > c.today, inc = t.kind === 'receita', ap = t.kind === 'aporte', neutral = t.kind === 'fatura' || t.kind === 'resgate';
       const extra = [t.recurrence === 'monthly' ? 'recorrente' : '', t.installmentTotal > 1 ? `parcela ${t.installmentNo}/${t.installmentTotal}` : '', future ? 'agendado' : ''].filter(Boolean).join(' · ');
       return `<div class="li" data-id="${t.id}"><div class="li-ic ${inc ? 'in' : ap ? 'ap' : ''}">${icon(neutral ? 'ph ph-arrows-left-right' : catIcon(t.category))}</div>
         <div class="li-t"><b>${esc(t.description)}</b><span>${esc(t.category)} · ${esc(srcLabel(c, t))}${extra ? ' · ' + extra : ''}</span></div>

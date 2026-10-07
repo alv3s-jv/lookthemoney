@@ -27,7 +27,7 @@ export const UP = 'oklch(0.84 0.16 160)';
 export const DN = 'oklch(0.73 0.17 22)';
 export const WARN = 'oklch(0.82 0.11 85)';
 
-export const KIND_LABEL = { despesa: 'Despesa', receita: 'Receita', aporte: 'Aporte', fatura: 'Fatura', resgate: 'Resgate', transferencia: 'Transferência' };
+export const KIND_LABEL = { despesa: 'Despesa', receita: 'Receita', aporte: 'Aporte', fatura: 'Fatura', resgate: 'Resgate' };
 export const GOAL_ICONS = ['ph ph-lifebuoy', 'ph ph-airplane-tilt', 'ph ph-car-profile', 'ph ph-sun-horizon', 'ph ph-house-line', 'ph ph-graduation-cap', 'ph ph-flag-pennant', 'ph ph-gift', 'ph ph-heart', 'ph ph-laptop'];
 export const ACCOUNT_KINDS = { checking: 'Conta corrente', wallet: 'Carteira / dinheiro', broker: 'Corretora', savings: 'Poupança / reserva' };
 

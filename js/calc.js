@@ -355,12 +355,13 @@ export function spentByCategory(txs, ym, upTo = null) {
   return out;
 }
 
+const NEUTRAL_CATS = ['Invest Fácil', 'Rendimentos'];
 /** Saldo atual de uma conta = inicial + movimentos (cartão não mexe no saldo; fatura paga mexe). */
 export function accountBalance(account, txs, upTo = null) {
   let b = +account.initialBalance || 0;
   for (const t of txs) {
     if (t.accountId !== account.id || t.cardId) continue;
-    if (t.kind === 'aporte' || t.kind === 'resgate' || t.kind === 'transferencia') continue; // aportes/resgates de investimentos não mexem no saldo das contas (ficam em Investimentos)
+    if (NEUTRAL_CATS.includes(t.category)) continue; // movimentos internos (ex.: Invest Fácil) não alteram o saldo total do banco
     if (upTo && t.date > upTo) continue;
     b += +t.amount;
   }
