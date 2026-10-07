@@ -17,6 +17,18 @@ export const AGENDA = [
   { t: 'VALE3', type: 'JCP', ps: 1.568705805, com: '2026-08-11', pay: '2026-09-02', note: 'Já pago. Aprovado em 30/07.', url: 'https://renovainvest.com.br/blog/dividendos-vale-vale3/' },
   { t: 'VALE3', type: 'DIVIDENDO', ps: 0.462016093, com: '2026-08-11', pay: '2026-09-02', note: 'Já pago. Aprovado em 30/07.', url: 'https://renovainvest.com.br/blog/dividendos-vale-vale3/' },
   { t: 'BBSE3', type: 'DIVIDENDO', ps: 1.98328466981, com: '2026-08-07', pay: '2026-09-03', note: 'Já pago. Referente ao 1º semestre de 2026.', url: 'https://www.infomoney.com.br/mercados/bb-seguridade-bbse3-pagara-r-385-bilhoes-em-dividendos-ou-r-198-por-acao/' },
+  // ---- proventos JÁ PAGOS aos papéis da carteira do usuário (datas e valores conferidos no Investidor10 em 06/10/2026; ps = total bruto ÷ ações)
+  { t: 'PETR4', type: 'JCP', ps: 0.313, com: '2026-04-22', pay: '2026-05-20', note: 'Já pago (JCP).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'PETR4', type: 'JCP', ps: 0.016333, com: '2026-04-22', pay: '2026-05-20', note: 'Já pago (rend. tributável).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'PETR4', type: 'JCP', ps: 0.313, com: '2026-04-22', pay: '2026-06-22', note: 'Já pago (JCP).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'PETR4', type: 'JCP', ps: 0.020333, com: '2026-04-22', pay: '2026-06-22', note: 'Já pago (rend. tributável).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'PETR4', type: 'JCP', ps: 0.350333, com: '2026-06-01', pay: '2026-08-20', note: 'Já pago (JCP).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'PETR4', type: 'JCP', ps: 0.350333, com: '2026-06-01', pay: '2026-09-21', note: 'Já pago (JCP).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'ITUB4', type: 'JCP', ps: 0.361667, com: '2026-06-18', pay: '2026-08-28', note: 'Já pago (JCP complementar).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'ITUB4', type: 'JCP', ps: 0.01765, com: '2026-06-30', pay: '2026-08-03', note: 'Já pago (JCP mensal).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'ITUB4', type: 'JCP', ps: 0.01765, com: '2026-07-31', pay: '2026-09-01', note: 'Já pago (JCP mensal).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'ITUB4', type: 'JCP', ps: 0.01765, com: '2026-08-31', pay: '2026-10-01', note: 'Já pago (JCP mensal).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'JEPQ', type: 'DIVIDENDO', ps: 2.89, com: '2026-09-30', pay: '2026-10-05', note: 'Já pago (ETF internacional; valor por cota já em R$). Retido na fonte nos EUA.', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
 ];
 
 export const staleDays = (today = new Date()) => Math.floor((today - new Date(AGENDA_DATE + 'T12:00:00')) / 86400000);

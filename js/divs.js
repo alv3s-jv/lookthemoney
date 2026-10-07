@@ -33,17 +33,17 @@ export function autoDividends(assets, investTx, manual, hist, today) {
   const out = [];
   const near = (assetId, pay) => manual.some(d => d.assetId === assetId && Math.abs(daysBetween(d.payDate, pay)) <= 7);
   for (const a of assets) {
-    if (!eligible(a)) continue;
-    const T = a.ticker.toUpperCase(), txs = investTx.filter(t => t.assetId === a.id); if (!txs.length) continue;
+    const T = a.ticker.toUpperCase(), items = AGENDA.filter(x => x.t === T);
+    if (!eligible(a) && !items.length) continue;       // agenda curada vale também p/ ativos fora do padrão B3 (ex.: ETF internacional, valor já em R$)
+    const txs = investTx.filter(t => t.assetId === a.id); if (!txs.length) continue;
     const first = txs.reduce((m, t) => (t.date < m ? t.date : m), '9999-12-31');
-    const items = AGENDA.filter(x => x.t === T);
     const push = (key, x, qty, est) => {
       if (!(qty > 0) || near(a.id, x.pay)) return;
       const gross = qty * x.ps;
       out.push({ id: 'auto:' + key, assetId: a.id, type: x.type, payDate: x.pay, perShare: x.ps, quantity: qty, amount: r2(netDividend(x.type, gross)), auto: true, est });
     };
     for (const x of items) push(`${T}:${x.com}:${x.type}:${x.pay}`, x, position(txs, x.com).qty, false);
-    for (const e of hist[T]?.cash || []) {
+    for (const e of eligible(a) ? hist[T]?.cash || [] : []) {
       if (!(e.rate > 0) || e.ex > today || e.ex < first) continue;
       if (items.some(x => Math.abs(daysBetween(x.com, e.ex)) <= 4)) continue; // já coberto pela agenda
       const type = a.assetClass === 'FII' ? 'RENDIMENTO' : e.label === 'JCP' ? 'JCP' : 'DIVIDENDO';
