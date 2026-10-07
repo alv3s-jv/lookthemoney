@@ -6,7 +6,7 @@ import {
   openModal, toast, confirmDialog, options, field, formData, errBox, ui,
 } from './ui.js';
 import {
-  CLASSES, CLASS_ORDER, position, perfSeries, monthlyReturns, monthlyGrid, pctOfCdi, extraOverCdi, dividendsLast12m, yieldOnCost, rebalance, splitWithinClass, fixedIncomeValue, netDividend,
+  CLASSES, CLASS_ORDER, position, perfSeries, monthlyReturns, monthlyGrid, monthlyPatrimony, pctOfCdi, extraOverCdi, dividendsLast12m, yieldOnCost, rebalance, splitWithinClass, fixedIncomeValue, netDividend,
 } from './calc.js';
 import { UP, DN, WARN, INDEXERS, APORTE_CAT } from './meta.js';
 import { buyForm, dividendForm, assetForm, targetsForm, deleteInvestTx } from './forms-inv.js';
@@ -222,6 +222,35 @@ function agendaPanel(c) {
     ${noInfo.length ? `<div class="hint" style="margin-top:10px">Sem anúncio vigente na agenda para: <b>${noInfo.map(esc).join(', ')}</b>. Isso não significa que não pagarão: ações costumam declarar após os balanços trimestrais (fim de outubro/novembro e fevereiro/março), e FIIs pagam rendimento mensal.</div>` : ''}
     <div class="hint" style="margin-top:8px">Valores anunciados pelas empresas (fontes: imprensa financeira); a quantidade usa sua posição na data com (comprou até a data com = tem direito). Líquido desconta 15% de IR sobre JCP. Datas podem mudar.</div></div>`;
 }
+
+// =============================================================================================== Patrimônio
+/** Barras mensais: base = valor aplicado; retorno total (ganho de capital + proventos) sobe em verde ou, se negativo, aparece em vermelho. */
+function patrChart(rows) {
+  const H = 230, max = Math.max(1, ...rows.map(r => Math.max(r.aplicado, r.total)));
+  const px = v => Math.max(0, v / max * H);
+  const cols = rows.map(r => {
+    const base = Math.min(r.aplicado, r.total), up = Math.max(0, r.total - r.aplicado), dn = Math.max(0, r.aplicado - r.total);
+    const tip = `${ymShort(r.ym)}${r.partial ? ' (parcial)' : ''} · aplicado ${money(r.aplicado, 0)} · ganho de capital ${money(r.gain, 0)} · proventos ${money(r.prov, 0)} · patrimônio ${money(r.total, 0)}`;
+    return `<div class="pt-col" title="${esc(tip)}"><div class="pt-val num">${nf(r.total / 1000, 1)}k</div><div class="pt-bar" style="height:${H}px"><i class="pt-seg" style="height:${px(base)}px;background:var(--color-accent)"></i>${up ? `<i class="pt-seg" style="height:${px(up)}px;background:var(--up)"></i>` : ''}${dn ? `<i class="pt-seg" style="height:${px(dn)}px;background:var(--dn);opacity:.85"></i>` : ''}</div><div class="pt-lbl">${ymShort(r.ym)}${r.partial ? '*' : ''}</div></div>`;
+  }).join('');
+  return `<div class="pt-wrap"><div class="pt-chart">${cols}</div><div class="legend" style="margin-top:8px"><span><i class="sw" style="background:var(--color-accent)"></i>Valor aplicado</span><span><i class="sw" style="background:var(--up)"></i>Retorno total (ganho + proventos)</span><span><i class="sw" style="background:var(--dn)"></i>Retorno negativo</span></div></div>`;
+}
+
+export const patrimonio = {
+  title: 'Patrimônio',
+  render(c) {
+    if (!c.assets.length) return noAssets(c, 'Patrimônio');
+    const rows = monthlyPatrimony(c.snaps, c.flows, c.dividends.filter(d => d.payDate <= c.today), c.today);
+    if (!rows.length) return `${invHead(c, 'Patrimônio')}<div class="panel">${empty('Sem histórico ainda.')}</div>`;
+    const L = rows[rows.length - 1], P = c.portfolio, ret = L.ret, pctRet = L.aplicado > 0 ? ret / L.aplicado : 0;
+    const tbl = [...rows].reverse().map((r, i, a) => { const prev = a[i + 1]; const d = prev ? r.total - prev.total - (r.aplicado - prev.aplicado) : r.ret; return `<tr><td>${ymShort(r.ym)}${r.partial ? ' <span class="tag tag-outline">parcial</span>' : ''}${r.est ? ' <span class="tag tag-neutral" title="valor do mês parcialmente estimado">est.</span>' : ''}</td><td class="r num">${money(r.aplicado, 0)}</td><td class="r num">${gainMoney(r.gain, 0)}</td><td class="r num">${money(r.prov, 2)}</td><td class="r num">${gainMoney(r.ret, 0)}</td><td class="r num"><b>${money(r.total, 0)}</b></td><td class="r num">${gainMoney(d, 0)}</td></tr>`; }).join('');
+    return `${invHead(c, 'Patrimônio', 'Valor aplicado + retorno total (ganho de capital + proventos), mês a mês')}
+    <div class="grid g-kpi">${kpi({ label: 'Patrimônio total', value: money(L.total, 0), hint: 'aplicado + retorno total' })}${kpi({ label: 'Valor aplicado', value: money(L.aplicado, 0) })}${kpi({ label: 'Retorno total', value: gainMoney(ret, 0), sub: pct(pctRet, 2), hint: `ganho de capital ${gainMoney(L.gain, 0)} · proventos ${money(L.prov, 2)}` })}${kpi({ label: 'Hoje no mercado', value: money(P.total, 0), hint: 'só ativos, sem proventos' })}</div>
+    <div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Evolução do patrimônio</h3><span class="sub">fim de cada mês · * mês em andamento</span></div>${patrChart(rows)}</div>
+    <div class="panel"><div class="panel-h"><h3>Mês a mês</h3></div><div class="tw"><table class="table"><thead><tr><th>Período</th><th class="r">Valor aplicado</th><th class="r">Ganho de capital</th><th class="r">Proventos</th><th class="r">Retorno total</th><th class="r">Patrimônio</th><th class="r">Resultado do mês</th></tr></thead><tbody>${tbl}</tbody></table></div>
+    <div class="hint" style="margin-top:8px">Valor aplicado = aportes líquidos (compras − vendas). Ganho de capital = valor de mercado no fim do mês − valor aplicado. Proventos = recebidos até o fim do mês (automáticos + lançados). Resultado do mês = variação do patrimônio sem contar os aportes do mês.</div></div>`;
+  },
+};
 
 export const proventos = {
   title: 'Proventos',

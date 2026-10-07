@@ -16,10 +16,10 @@ import { txForm, accountForm } from './forms-fin.js';
 import { buyForm } from './forms-inv.js';
 
 const FIN_NAV = [['overview', 'Visão geral', 'ph ph-squares-four'], ['tx', 'Receitas e despesas', 'ph ph-arrows-down-up'], ['cards', 'Cartões', 'ph ph-credit-card'], ['bills', 'Contas a pagar', 'ph ph-calendar-check'], ['budget', 'Orçamento', 'ph ph-chart-pie-slice'], ['goals', 'Metas', 'ph ph-flag-pennant'], ['reports', 'Relatórios', 'ph ph-file-text']];
-const INV_NAV = [['mercado', 'Mercado', 'ph ph-chart-line'], ['teto', 'Preço-teto', 'ph ph-gauge'], ['resumo', 'Resumo', 'ph ph-squares-four'], ['desempenho', 'Desempenho', 'ph ph-trend-up'], ['posicoes', 'Posições', 'ph ph-wallet'], ['proventos', 'Proventos', 'ph ph-coins'], ['alocacao', 'Alocação', 'ph ph-target']];
+const INV_NAV = [['mercado', 'Mercado', 'ph ph-chart-line'], ['teto', 'Preço-teto', 'ph ph-gauge'], ['resumo', 'Resumo', 'ph ph-squares-four'], ['patrimonio', 'Patrimônio', 'ph ph-chart-bar'], ['desempenho', 'Desempenho', 'ph ph-trend-up'], ['posicoes', 'Posições', 'ph ph-wallet'], ['proventos', 'Proventos', 'ph ph-coins'], ['alocacao', 'Alocação', 'ph ph-target']];
 const VIEWS = {
   fin: { overview: FIN.overview, tx: FIN.tx, cards: FIN.cards, bills: FIN.bills, budget: FIN.budget, goals: FIN.goals, reports: FIN.reports },
-  inv: { mercado, teto, resumo: INV.resumo, desempenho: INV.desempenho, posicoes: INV.posicoes, ativo: INV.ativo, proventos: INV.proventos, alocacao: INV.alocacao },
+  inv: { mercado, teto, resumo: INV.resumo, patrimonio: INV.patrimonio, desempenho: INV.desempenho, posicoes: INV.posicoes, ativo: INV.ativo, proventos: INV.proventos, alocacao: INV.alocacao },
 };
 const lastRoute = { fin: 'overview', inv: 'resumo' };
 let param = null, view = null, moreModal = null;

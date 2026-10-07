@@ -215,3 +215,17 @@ test('monthlyGrid: retorno do ano e acumulado encadeados', async () => {
   assert.ok(Math.abs(g[0].port - (1.003 * 1.0151 * 0.9593 - 1)) < 1e-12);
   assert.ok(Math.abs(g[1].accPort - (1.003 * 1.0151 * 0.9593 * 1.02 - 1)) < 1e-12);
 });
+
+test('monthlyPatrimony: aplicado + retorno total (ganho + proventos) por mês', () => {
+  const snaps = [{ date: '2026-03-21', value: 753 }, { date: '2026-03-31', value: 755.29 }, { date: '2026-04-30', value: 3437.15 }, { date: '2026-05-31', value: 5400 }];
+  const flows = [{ date: '2026-03-21', amount: 753 }, { date: '2026-04-12', amount: 1200 }, { date: '2026-04-14', amount: 1439.4 }, { date: '2026-05-20', amount: 2147 }];
+  const divs = [{ payDate: '2026-05-20', amount: 8 }];
+  const r = C.monthlyPatrimony(snaps, flows, divs, '2026-05-31');
+  assert.deepEqual(r.map(x => x.ym), ['2026-03', '2026-04', '2026-05']);
+  assert.ok(Math.abs(r[0].gain - 2.29) < 1e-9 && r[0].aplicado === 753);
+  assert.ok(Math.abs(r[1].aplicado - 3392.4) < 1e-9 && Math.abs(r[1].gain - 44.75) < 1e-6);
+  assert.ok(Math.abs(r[2].total - (r[2].aplicado + r[2].gain + 8)) < 1e-9);   // patrimônio = aplicado + retorno total
+  assert.equal(r[2].partial, false);
+  const p = C.monthlyPatrimony(snaps, flows, [], '2026-05-15');
+  assert.equal(p[2].partial, true);
+});

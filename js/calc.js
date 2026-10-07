@@ -219,6 +219,32 @@ export function monthlyGrid(mr) {
   return out;
 }
 
+/**
+ * Patrimônio mês a mês = valor aplicado + retorno total.
+ *  aplicado = aportes líquidos acumulados (compras − vendas) até o fim do mês
+ *  ganho    = valor de mercado da carteira (último snapshot do mês) − aplicado
+ *  prov     = proventos recebidos (data de pagamento) acumulados até o fim do mês
+ *  ret      = ganho + prov (retorno total)      total = aplicado + ret
+ * snaps: [{date,value,est}], flows: [{date,amount}], divs: [{payDate,amount}], today: ISO. Mês corrente termina em `today`.
+ */
+export function monthlyPatrimony(snaps, flows, divs, today) {
+  if (!flows.length) return [];
+  const S = [...snaps].sort((a, b) => a.date.localeCompare(b.date)), F = [...flows].sort((a, b) => a.date.localeCompare(b.date));
+  const first = F[0].date.slice(0, 7), cur = today.slice(0, 7), out = [];
+  for (let ym = first; ym <= cur; ym = nextYM(ym)) {
+    const [y, m] = ym.split('-').map(Number), last = `${ym}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+    const end = last > today ? today : last;
+    const aplicado = F.filter(f => f.date <= end).reduce((s, f) => s + f.amount, 0);
+    let snap = null; for (const s of S) { if (s.date <= end) snap = s; else break; }
+    const value = snap ? snap.value : aplicado;
+    const prov = divs.filter(d => d.payDate <= end).reduce((s, d) => s + +d.amount, 0);
+    const gain = value - aplicado, ret = gain + prov;
+    out.push({ ym, end, aplicado, value, gain, prov, ret, total: aplicado + ret, est: !!snap?.est, partial: end === today && last > today });
+  }
+  return out;
+}
+const nextYM = ym => { const [y, m] = ym.split('-').map(Number); return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`; };
+
 // =====================================================================
 // Proventos
 // =====================================================================
