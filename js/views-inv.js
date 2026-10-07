@@ -3,7 +3,7 @@ import { store } from './store.js';
 import { app, memberName, getCtx, refreshAll, ensureSnapshots } from './app.js';
 import {
   money, smoney, pct, pctPlain, num, qtyFmt, gain, gainMoney, gainPct, col, arrow, kpi, tag, progress, empty, donut, perfChart, stackedBars, lotChart, icon, esc,
-  openModal, toast, confirmDialog, options, field, formData, errBox, ui, countUp, sparkline, goalBar, confetti,
+  openModal, toast, confirmDialog, options, field, formData, errBox, ui, countUp, sparkline, growthChart, goalBar, confetti,
 } from './ui.js';
 import {
   CLASSES, CLASS_ORDER, position, perfSeries, perfMonthly, monthlyReturns, monthlyGrid, monthlyPatrimony, pctOfCdi, extraOverCdi, dividendsLast12m, yieldOnCost, rebalance, splitWithinClass, fixedIncomeValue, netDividend,
@@ -78,7 +78,7 @@ const MILESTONES = [10000, 15000, 20000, 25000, 30000, 40000, 50000, 75000, 1000
 const goalOf = (k, d) => +store.setting(k, d) || d;
 
 function heroCard(c, pd) {
-  const P = c.portfolio, ret = P.valorizacao + P.prov, trend = perfSeries(c.snaps, c.cdi, addDays(c.today, -30)).map(x => 1 + x.port), upDay = P.dayValue >= 0;
+  const P = c.portfolio, ret = P.valorizacao + P.prov, gc = monthlyPatrimony(c.snaps, c.flows, c.dividends.filter(d => d.payDate <= c.today), c.today), upDay = P.dayValue >= 0;
   const periodTxt = app.period === 'Tudo' ? 'desde o início' : `em ${app.period}`;
   const msg = pd
     ? `Sua carteira rende <b>${pd.pctCdi == null ? '—' : nf(pd.pctCdi, 0) + '% do CDI'}</b> ${periodTxt} (${pct(pd.port, 1)} contra ${pct(pd.cdi, 1)}). ${ret >= 0 ? `Até agora você ganhou <b>${money(ret, 0)}</b> somando valorização e proventos.` : `Hoje o saldo está <b>${money(Math.abs(ret), 0)}</b> abaixo do investido, contando proventos.`}`
@@ -89,7 +89,7 @@ function heroCard(c, pd) {
       <div class="hero-v num">${sk(c, countUp(P.total, { d: 2, key: 'hero-total' }))}</div>
       <div class="hero-day ${upDay ? 'up' : 'dn'}">${sk(c, `${gainMoney(P.dayValue)} · ${pct(P.dayPct, 2)} hoje`)}</div>
       <div class="hero-msg">${msg}</div></div>
-    <div class="hero-r">${trend.length > 2 && !ui.hidden ? sparkline(trend) : ''}${trend.length > 2 && !ui.hidden ? `<div class="hero-cap"><span>rentabilidade dos últimos 30 dias (sem aportes)</span><span>${pct(trend[trend.length - 1] / (trend[0] || 1) - 1, 1)}</span></div>` : ''}</div>
+    <div class="hero-r">${gc && !ui.hidden ? growthChart(gc) : ''}</div>
     <div class="hero-stats">
       ${stat('Total investido', money(P.cost), '')}
       ${stat('Valorização', sk(c, gainMoney(P.valorizacao, 0)), sk(c, gainPct(P.cost ? P.valorizacao / P.cost : 0)))}
@@ -348,9 +348,9 @@ export const proventos = {
     const colors = { Dividendo: 'var(--color-accent-300)', JCP: 'var(--color-accent-600)', 'Rendimento FII': 'var(--color-accent)' };
     const list = rec.filter(d => !PV.asset || d.assetId === PV.asset);
     return `${invHead(c, 'Proventos', 'Dividendos, JCP e rendimentos de FIIs', `<button class="btn btn-secondary" data-act="new-div"><i class="ph ph-plus"></i> Lançar provento</button>`)}
-    ${agendaPanel(c)}
     <div class="grid g-kpi">${kpi({ label: 'Últimos 12 meses', value: money(v12, 0) })}${kpi({ label: 'Média mensal', value: money(v12 / 12, 0) })}${kpi({ label: 'Yield on cost', value: pctPlain(yoc, 1), hint: '12 meses ÷ custo atual da carteira' })}${kpi({ label: 'A receber', value: money(sum(fut, d => +d.amount), 0), sub: `${fut.length} lançamento${fut.length === 1 ? '' : 's'}` })}</div>
     <div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Proventos por mês</h3><div class="legend">${Object.entries(colors).map(([k, v]) => `<span><i class="sw" style="background:${v}"></i>${k}</span>`).join('')}</div></div>${stackedBars(cols, colors)}</div>
+    ${agendaPanel(c)}
     <div class="panel"><div class="panel-h"><h3>Extrato de proventos</h3><select class="input sm" data-f="passet" style="width:auto" aria-label="Filtrar ativo"><option value="">Todos os ativos</option>${options(c.assets.filter(a => a.assetClass !== 'RENDA_FIXA').map(a => [a.id, a.ticker]), PV.asset)}</select></div>
       ${list.length || fut.length ? `<div class="tw"><table class="table"><thead><tr><th>Pagamento</th><th>Ativo</th><th>Tipo</th><th class="r">Por cota</th><th class="r">Cotas</th><th class="r">Recebido</th><th></th></tr></thead><tbody>${[...fut.filter(d => !PV.asset || d.assetId === PV.asset).reverse(), ...list].map(d => `<tr class="clk" data-act="edit-div" data-id="${d.id}"><td>${fmtDate(d.payDate)}${d.payDate > c.today ? ' <span class="tag tag-outline">a receber</span>' : ''}${d.auto ? ` <span class="tag tag-neutral" title="Creditado automaticamente pela sua posição na data com">${d.est ? 'auto · data estimada' : 'automático'}</span>` : ''}</td><td><span class="tick">${esc(A[d.assetId].ticker)}</span></td><td>${typeName[d.type]}</td><td class="r num">${nf(d.perShare, 4)}</td><td class="r num">${qtyFmt(d.quantity)}</td><td class="r num">${money(d.amount)}</td><td class="r">${d.auto ? '' : `<button class="iconbtn" data-act="edit-div" data-id="${d.id}" aria-label="Editar"><i class="ph ph-pencil-simple"></i></button>`}</td></tr>`).join('')}</tbody></table></div><div class="hint" style="margin-top:8px">Proventos são creditados automaticamente pela sua posição na data com (comprou até a data com = tem direito); entram no patrimônio e no desempenho na data de pagamento. JCP aparece líquido (IR 15%). “Data estimada” = pagamento ainda não confirmado na agenda. Para corrigir um automático, lance o real manualmente (o manual prevalece).</div>` : empty('Nenhum provento lançado ainda.', `<button class="btn btn-primary btn-sm" data-act="new-div">Lançar provento</button>`)}</div>`;
   },

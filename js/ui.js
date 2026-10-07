@@ -60,6 +60,25 @@ export function sparkline(values, { w = 220, h = 64 } = {}) {
   return `<svg viewBox="0 0 ${w} ${h}" class="spark" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".38"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs><path d="M${pts.join(' L')} L${w},${h} L0,${h} Z" fill="url(#${id})"/><polyline points="${pts.join(' ')}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" class="draw" pathLength="1"/><circle cx="${X(v.length - 1)}" cy="${Y(v[v.length - 1])}" r="3.2" fill="${c}" vector-effect="non-scaling-stroke" class="spark-dot"/></svg>`;
 }
 
+
+/** Gráfico "Patrimônio × Aplicado" (mensal): área do patrimônio, linha tracejada do valor aplicado. rows: [{ym, aplicado, total}] */
+export function growthChart(rows, { w = 560, h = 170 } = {}) {
+  if (!rows || rows.length < 2) return '';
+  const id = 'gc' + ++spkSeq, M = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const lab = ym => `${M[+ym.slice(5) - 1]}/${ym.slice(2, 4)}`, L = 8, R = 8, T = 14, B = 26;
+  const all = rows.flatMap(r => [r.total, r.aplicado]), lo = Math.min(...all), hi = Math.max(...all), sp = (hi - lo) || hi * 0.1 || 1, y0 = Math.max(0, lo - sp * 0.25), y1 = hi + sp * 0.12;
+  const X = i => L + (i / (rows.length - 1)) * (w - L - R), Y = v => T + ((y1 - v) / (y1 - y0)) * (h - T - B);
+  const smooth = pts => pts.map((p, i) => { if (!i) return `M${p[0].toFixed(1)},${p[1].toFixed(1)}`; const q = pts[i - 1], cx = (q[0] + p[0]) / 2; return `C${cx.toFixed(1)},${q[1].toFixed(1)} ${cx.toFixed(1)},${p[1].toFixed(1)} ${p[0].toFixed(1)},${p[1].toFixed(1)}`; }).join(' ');
+  const tot = rows.map((r, i) => [X(i), Y(r.total)]), apl = rows.map((r, i) => [X(i), Y(r.aplicado)]);
+  const last = rows[rows.length - 1], ganho = last.total - last.aplicado, up = ganho >= 0, c = up ? 'var(--up)' : 'var(--dn)';
+  const grid = [0, 1, 2].map(k => { const v = y0 + ((y1 - y0) * (k + 0.5)) / 3, y = Y(v); return `<line x1="${L}" x2="${w - R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity=".08"/><text x="${w - R}" y="${(y - 4).toFixed(1)}" text-anchor="end" class="gc-t">${nf(v / 1000, 1)}k</text>`; }).join('');
+  const idx = [0, Math.round((rows.length - 1) / 2), rows.length - 1].filter((v, i, a) => a.indexOf(v) === i);
+  const xl = idx.map(i => `<text x="${X(i).toFixed(1)}" y="${h - 8}" text-anchor="${i === 0 ? 'start' : i === rows.length - 1 ? 'end' : 'middle'}" class="gc-t">${lab(rows[i].ym)}</text>`).join('');
+  const dots = rows.map((r, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(r.total).toFixed(1)}" r="2.4" fill="${c}" opacity=".55"><title>${lab(r.ym)} · patrimônio ${money(r.total, 0)} · aplicado ${money(r.aplicado, 0)}</title></circle>`).join('');
+  const area = `${smooth(tot)} L${X(rows.length - 1).toFixed(1)},${h - B} L${L},${h - B} Z`;
+  return `<div class="gc"><svg viewBox="0 0 ${w} ${h}" class="gc-svg" role="img" aria-label="Patrimônio versus valor aplicado por mês"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".34"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>${grid}<path d="${area}" fill="url(#${id})"/><path d="${smooth(apl)}" fill="none" stroke="currentColor" stroke-opacity=".5" stroke-width="1.6" stroke-dasharray="4 4"/><path d="${smooth(tot)}" fill="none" stroke="${c}" stroke-width="2.4" stroke-linecap="round" class="draw" pathLength="1"/>${dots}<circle cx="${X(rows.length - 1).toFixed(1)}" cy="${Y(last.total).toFixed(1)}" r="4.5" fill="${c}" class="spark-dot" style="color:${c}"/>${xl}</svg><div class="gc-leg"><span><i style="background:${c}"></i>Patrimônio ${money(last.total, 0)}</span><span><i class="dash"></i>Aplicado ${money(last.aplicado, 0)}</span><b class="num" style="color:${c}">${up ? '+' : '−'}${money(Math.abs(ganho), 0)} de resultado</b></div></div>`;
+}
+
 /** Barra de meta com marcos (25/50/75%) e rótulo. */
 export function goalBar({ label, cur, target, fmt, icon: ic = 'ph-target', color = 'var(--color-accent)' }) {
   const r = target > 0 ? clamp(cur / target, 0, 1) : 0;

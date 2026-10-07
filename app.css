@@ -464,3 +464,10 @@ details.how { margin-top: 10px; color: var(--color-neutral-400); font-size: 12.5
 .why { list-style: none; padding-left: 0; display: grid; gap: 6px; }
 .why li { position: relative; padding: 8px 12px 8px 34px; margin: 0; border-radius: 10px; background: color-mix(in srgb, var(--color-text) 4%, transparent); }
 .why li::before { content: '\e182'; font-family: 'Phosphor'; position: absolute; left: 11px; top: 8px; color: var(--c-etf); font-size: 15px; }
+
+/* Gráfico Patrimônio × Aplicado */
+.gc { width: 100%; } .gc-svg { width: 100%; height: auto; display: block; overflow: visible; color: var(--color-text); }
+.gc-t { font-size: 10.5px; fill: var(--color-neutral-400); font-family: var(--font-body, inherit); }
+.gc-leg { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-top: 6px; font-size: 12px; color: var(--color-neutral-300); }
+.gc-leg i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; } .gc-leg i.dash { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 8px); opacity: .6; }
+.gc-leg b { margin-left: auto; font-weight: 600; }
