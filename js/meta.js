@@ -23,8 +23,8 @@ export const INCOME_CATS = {
 export const APORTE_CAT = 'Aporte em investimentos';
 export const catIcon = c => EXPENSE_CATS[c]?.icon || INCOME_CATS[c]?.icon || (c === APORTE_CAT ? 'ph ph-chart-line-up' : 'ph ph-tag');
 
-export const UP = 'oklch(0.80 0.11 160)';
-export const DN = 'oklch(0.75 0.12 25)';
+export const UP = 'oklch(0.84 0.16 160)';
+export const DN = 'oklch(0.73 0.17 22)';
 export const WARN = 'oklch(0.82 0.11 85)';
 
 export const KIND_LABEL = { despesa: 'Despesa', receita: 'Receita', aporte: 'Aporte', fatura: 'Fatura', resgate: 'Resgate' };

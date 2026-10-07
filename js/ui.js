@@ -27,11 +27,52 @@ export const gainMoney = (v, d = 2) => gain(v, smoney(v, d));
 
 // ---------------------------------------------------------------- blocos
 export const icon = (cls, extra = '') => `<i class="${cls}" ${extra} aria-hidden="true"></i>`;
-export const kpi = ({ label, value, sub = '', hint = '' }) => `<div class="kpi"><div class="kpi-l">${label}</div><div class="kpi-v num">${value}</div>${sub ? `<div class="kpi-s num">${sub}</div>` : ''}${hint ? `<div class="kpi-h">${hint}</div>` : ''}</div>`;
+export const kpi = ({ label, value, sub = '', hint = '', ic = '', tone = '' }) => `<div class="kpi ${tone ? 'tone-' + tone : ''}"><div class="kpi-l">${ic ? `<i class="${ic} kpi-ic" aria-hidden="true"></i>` : ''}${label}</div><div class="kpi-v num">${value}</div>${sub ? `<div class="kpi-s num">${sub}</div>` : ''}${hint ? `<div class="kpi-h">${hint}</div>` : ''}</div>`;
 export const tag = (t, cls = 'tag-neutral') => `<span class="tag ${cls}">${esc(t)}</span>`;
 export const progress = (ratio, { color = 'var(--color-accent)', marker = null, h = 6 } = {}) =>
   `<div class="bar" style="height:${h}px"><div class="bar-f" style="width:${clamp(ratio, 0, 1) * 100}%;background:${color}"></div>${marker != null ? `<div class="bar-m" style="left:${clamp(marker, 0, 1) * 100}%"></div>` : ''}</div>`;
-export const empty = (msg, cta = '') => `<div class="empty"><i class="ph ph-tray" aria-hidden="true"></i><p>${msg}</p>${cta}</div>`;
+export const empty = (msg, cta = '', ic = 'ph-tray') => `<div class="empty"><span class="empty-ic"><i class="ph ${ic}" aria-hidden="true"></i></span><p>${msg}</p>${cta}</div>`;
+
+/** Número que "sobe" até o valor ao aparecer (e anima de um valor para outro nas atualizações). Respeita "Ocultar valores". kind: money | smoney | pct | int */
+const fmtCount = (v, kind, d) => (kind === 'smoney' ? smoney(v, d) : kind === 'pct' ? pct(v, d) : kind === 'int' ? nf(v, 0) : money(v, d));
+export const countUp = (v, { kind = 'money', d = 0, key = '' } = {}) => (ui.hidden || !isFinite(v) ? fmtCount(v || 0, kind, d) : `<span data-count="${v}" data-kind="${kind}" data-d="${d}" data-ck="${esc(key)}">${fmtCount(v, kind, d)}</span>`);
+const lastCount = new Map();
+export function bindCounts(root) {
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  root.querySelectorAll('[data-count]').forEach(el => {
+    const to = +el.dataset.count, kind = el.dataset.kind, d = +el.dataset.d, k = el.dataset.ck || kind + ':' + el.closest('.kpi,.hero-card,.panel')?.querySelector('.kpi-l,h3')?.textContent;
+    const from = lastCount.has(k) ? lastCount.get(k) : 0; lastCount.set(k, to);
+    if (reduce || from === to) return;
+    const t0 = performance.now(), dur = 900;
+    const step = now => { const t = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - t, 3); el.textContent = fmtCount(from + (to - from) * e, kind, d); if (t < 1) requestAnimationFrame(step); };
+    el.textContent = fmtCount(from, kind, d); requestAnimationFrame(step);
+  });
+}
+
+/** Mini-gráfico de tendência com área em gradiente. values: números; tom verde se terminou acima do início, coral se abaixo. */
+let spkSeq = 0;
+export function sparkline(values, { w = 220, h = 64 } = {}) {
+  const v = values.filter(x => isFinite(x)); if (v.length < 2) return '';
+  const up = v[v.length - 1] >= v[0], c = up ? 'var(--up)' : 'var(--dn)', id = 'sp' + ++spkSeq;
+  const lo = Math.min(...v), hi = Math.max(...v), pad = (hi - lo || Math.abs(hi) * 0.01 || 1) * 0.15;
+  const X = i => (i / (v.length - 1)) * w, Y = x => 4 + ((hi + pad - x) / (hi - lo + 2 * pad)) * (h - 8);
+  const pts = v.map((x, i) => `${X(i).toFixed(1)},${Y(x).toFixed(1)}`);
+  return `<svg viewBox="0 0 ${w} ${h}" class="spark" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".38"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs><path d="M${pts.join(' L')} L${w},${h} L0,${h} Z" fill="url(#${id})"/><polyline points="${pts.join(' ')}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" class="draw" pathLength="1"/><circle cx="${X(v.length - 1)}" cy="${Y(v[v.length - 1])}" r="3.2" fill="${c}" vector-effect="non-scaling-stroke" class="spark-dot"/></svg>`;
+}
+
+/** Barra de meta com marcos (25/50/75%) e rótulo. */
+export function goalBar({ label, cur, target, fmt, icon: ic = 'ph-target', color = 'var(--color-accent)' }) {
+  const r = target > 0 ? clamp(cur / target, 0, 1) : 0;
+  return `<div class="gb"><div class="row spread" style="margin-bottom:8px"><span class="gb-t"><i class="ph ${ic}"></i> ${label}</span><span class="num muted">${fmt(cur)} <span style="opacity:.6">/ ${fmt(target)}</span></span></div><div class="gb-bar"><div class="gb-f" style="width:${(r * 100).toFixed(1)}%;background:${color}"></div>${[25, 50, 75].map(m => `<i class="gb-m ${r * 100 >= m ? 'hit' : ''}" style="left:${m}%"></i>`).join('')}</div><div class="gb-s">${r >= 1 ? '🎯 Meta batida!' : `<b class="num">${nf(r * 100, 0)}%</b> do caminho · faltam ${fmt(Math.max(0, target - cur))}`}</div></div>`;
+}
+
+/** Chuva de confete (celebração de marcos). */
+export function confetti(n = 46) {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const host = document.createElement('div'); host.className = 'confetti'; const cols = ['#7c9cff', '#ff8fa3', '#4fd1c5', '#d38cff', '#f2cf66', '#6be3a8'];
+  for (let i = 0; i < n; i++) { const p = document.createElement('i'); p.style.cssText = `left:${Math.random() * 100}%;background:${cols[i % cols.length]};animation-delay:${Math.random() * 0.5}s;animation-duration:${1.8 + Math.random() * 1.4}s;--dx:${(Math.random() - 0.5) * 160}px;--r:${Math.random() * 720}deg`; host.appendChild(p); }
+  document.body.appendChild(host); setTimeout(() => host.remove(), 3600);
+}
 export const monthNav = (ym, label) => `<div class="monthnav"><button class="btn btn-secondary btn-icon" data-act="month-prev" aria-label="Mês anterior"><i class="ph ph-caret-left"></i></button><span class="monthnav-l">${label}</span><button class="btn btn-secondary btn-icon" data-act="month-next" aria-label="Próximo mês"><i class="ph ph-caret-right"></i></button></div>`;
 export const seg = (name, opts, cur) => `<div class="seg" role="radiogroup">${opts.map(([v, l]) => `<label class="seg-opt"><input type="radio" name="${name}" value="${esc(v)}" ${v === cur ? 'checked' : ''}>${esc(l)}</label>`).join('')}</div>`;
 
@@ -108,7 +149,7 @@ export function perfChart(pts, { w = 720, h = 250 } = {}) {
   const stepC = [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1];
   const step = stepC.find(s => (max - min) / s <= 6) || 1;
   let g = '';
-  for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) g += `<line x1="${L}" x2="${w - R}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${L - 6}" y="${Y(v) + 3.5}" text-anchor="end" class="ax">${nf(v * 100, step < 0.01 ? 1 : 0)}%</text>`;
+  for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) g += `<line x1="${L}" x2="${w - R}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${L - 6}" y="${Y(v) + 3.5}" text-anchor="end" class="ax">${nf(Math.abs(v) < 1e-9 ? 0 : v * 100, step < 0.01 ? 1 : 0)}%</text>`;
   // área onde carteira > CDI
   let run = [];
   const flush = () => { if (run.length > 1) g += `<path d="M${run.map(p => `${p.x},${p.yp}`).join(' L')} L${[...run].reverse().map(p => `${p.x},${p.yc}`).join(' L')} Z" fill="color-mix(in srgb, var(--color-accent) 16%, transparent)"/>`; run = []; };
@@ -122,10 +163,13 @@ export function perfChart(pts, { w = 720, h = 250 } = {}) {
   flush();
   const line = k => P.map((p, i) => `${X(i).toFixed(1)},${Y(p[k]).toFixed(1)}`).join(' ');
   g += `<polyline points="${line('cdi')}" fill="none" stroke="var(--color-neutral-400)" stroke-width="1.6" stroke-dasharray="5 4"/>`;
-  g += `<polyline points="${line('port')}" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linejoin="round"/>`;
+  const gid = 'pg' + (perfSeq + 1), y0 = Y(Math.max(min, Math.min(0, max)));
+  g = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--color-accent)" stop-opacity=".34"/><stop offset="1" stop-color="var(--color-accent)" stop-opacity="0"/></linearGradient></defs>` + g;
+  g += `<path d="M${P.map((p, i) => `${X(i).toFixed(1)},${Y(p.port).toFixed(1)}`).join(' L')} L${X(P.length - 1).toFixed(1)},${y0} L${X(0).toFixed(1)},${y0} Z" fill="url(#${gid})" class="fade-in"/>`;
+  g += `<polyline points="${line('port')}" fill="none" stroke="var(--color-accent)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" pathLength="1" class="draw glow-line"/>`;
   if (P.length <= 40) g += P.map((p, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(p.port).toFixed(1)}" r="3" fill="var(--color-accent)"/>`).join('');
-  const nT = Math.min(6, P.length), xl = [];
-  for (let k = 0; k < nT; k++) { const i = Math.round((k / (nT - 1)) * (P.length - 1)); const [y, m] = (P[i].ym || P[i].date).split('-'); xl.push(`<text x="${X(i)}" y="${h - 8}" text-anchor="${k === 0 ? 'start' : k === nT - 1 ? 'end' : 'middle'}" class="ax">${MONTHS_SHORT[+m - 1]}/${y.slice(2)}</text>`); }
+  const monthly = P.length <= 13, nT = monthly ? P.length : Math.min(6, P.length), xl = [];
+  for (let k = 0; k < nT; k++) { const i = monthly ? k : Math.round((k / (nT - 1)) * (P.length - 1)); const [y, m] = (P[i].ym || P[i].date).split('-'); xl.push(`<text x="${X(i)}" y="${h - 8}" text-anchor="${k === 0 ? 'start' : k === nT - 1 ? 'end' : 'middle'}" class="ax">${MONTHS_SHORT[+m - 1]}/${y.slice(2)}</text>`); }
   g += xl.join('');
   const id = 'pf' + ++perfSeq;
   perfReg.set(id, { P, X, Y, w, h, L, R, T, B });
@@ -133,6 +177,7 @@ export function perfChart(pts, { w = 720, h = 250 } = {}) {
 }
 
 export function bindCharts(root) {
+  bindCounts(root);
   root.querySelectorAll('[data-perf]').forEach(el => {
     const d = perfReg.get(el.dataset.perf); if (!d) return;
     const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), xh = el.querySelector('.xh'), dp = el.querySelector('.dp'), dc = el.querySelector('.dc');

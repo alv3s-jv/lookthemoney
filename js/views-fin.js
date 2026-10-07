@@ -2,7 +2,7 @@
 import { store } from './store.js';
 import { app, memberName, getCtx } from './app.js';
 import {
-  money, smoney, pct, pctPlain, num, gain, gainMoney, gainPct, col, arrow, kpi, tag, progress, empty, monthNav, seg, barsIncomeExpense,
+  money, smoney, pct, pctPlain, num, gain, gainMoney, gainPct, col, arrow, kpi, countUp, tag, progress, empty, monthNav, seg, barsIncomeExpense,
   donut, ring, toast, confirmDialog, esc, icon, options, field, openModal, formData, errBox,
 } from './ui.js';
 import {
@@ -54,23 +54,25 @@ export const overview = {
     const budget = Object.entries(c.plans).filter(([k, v]) => v > 0 && k !== APORTE_CAT).map(([k, v]) => ({ k, used: spent[k] || 0, plan: v, r: (spent[k] || 0) / v })).sort((a, b) => b.r - a.r).slice(0, 5);
     const bills = billsForMonth(c.bills, c.cards, c.txs, c.billPayments, c.todayYM).filter(b => !b.paid).slice(0, 5);
     const al = alerts(c);
+    const neg = c.accounts.map(a => ({ a, b: accountBalance(a, c.txs, c.today) })).filter(x => x.b < -1);
+    if (neg.length) al.unshift({ tone: 'warn', icon: 'ph ph-bank', to: 'config', text: `${neg.map(x => `${x.a.name} está em ${money(x.b, 0)}`).join(' · ')} — provavelmente falta o saldo inicial da conta (os aportes saem dela, mas o dinheiro de origem não foi lançado). Isso reduz o patrimônio total acima. Toque para ajustar em Configurações → Contas.` });
     const name = (store.setting('userName') || memberName(app.user?.id) || (app.user?.email || '').split('@')[0] || '').replace(/^./, m => m.toUpperCase());
-    return `${head(`Olá${name && app.user?.id !== 'local' ? ', ' + esc(name) : ''}`, new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, m => m.toUpperCase()), `<button class="btn btn-primary" data-act="new-tx"><i class="ph ph-plus"></i> Novo lançamento</button>`)}
+    return `${head(`${new Date().getHours() < 12 ? 'Bom dia' : new Date().getHours() < 18 ? 'Boa tarde' : 'Boa noite'}${name && app.user?.id !== 'local' ? ', ' + esc(name) : ''}`, new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, m => m.toUpperCase()), `<button class="btn btn-primary" data-act="new-tx"><i class="ph ph-plus"></i> Novo lançamento</button>`)}
     <div class="grid g-kpi">
-      ${`<div class="kpi hero"><div class="kpi-l">Patrimônio total</div><div class="kpi-v num">${money(accBal + inv, 0)}</div><div class="kpi-s">${money(accBal, 0)} em contas · ${money(inv, 0)} investidos</div></div>`}
-      ${kpi({ label: 'Receitas do mês', value: money(s.income, 0), sub: `${s.count} lançamentos` })}
-      ${kpi({ label: 'Despesas do mês', value: money(s.expense, 0), sub: s.income > 0 ? `${Math.round(s.expense / s.income * 100)}% da receita` : '' })}
-      ${kpi({ label: 'Saldo do mês', value: `<span style="color:${col(s.balance)}">${money(s.balance, 0)}</span>`, sub: `após aportes de ${money(s.aporte, 0)}` })}
+      ${`<div class="kpi hero tone-gold"><div class="kpi-l"><i class="ph ph-vault kpi-ic"></i>Patrimônio total</div><div class="kpi-v num">${countUp(accBal + inv, { key: 'ov-pat' })}</div><div class="kpi-s">${money(accBal, 0)} em contas · ${money(inv, 0)} investidos</div></div>`}
+      ${kpi({ label: 'Receitas do mês', ic: 'ph ph-arrow-circle-down', tone: 'up', value: countUp(s.income, { key: 'ov-rec' }), sub: `${s.count} lançamentos` })}
+      ${kpi({ label: 'Despesas do mês', ic: 'ph ph-arrow-circle-up', tone: 'dn', value: countUp(s.expense, { key: 'ov-des' }), sub: s.income > 0 ? `${Math.round(s.expense / s.income * 100)}% da receita` : '' })}
+      ${kpi({ label: 'Saldo do mês', ic: 'ph ph-scales', tone: s.balance >= 0 ? 'teal' : 'dn', value: `<span style="color:${col(s.balance)}">${countUp(s.balance, { key: 'ov-sal' })}</span>`, sub: `após aportes de ${money(s.aporte, 0)}` })}
     </div>
     ${al.length ? `<div class="stack" style="margin-bottom:14px;gap:8px">${al.slice(0, 4).map(a => `<div class="notice ${a.tone === 'dn' || a.tone === 'warn' ? 'warn' : ''}" ${nav(a.to)} style="cursor:pointer"><i class="${a.icon}" ${a.tone === 'dn' ? 'style="color:var(--dn)"' : ''}></i><span>${esc(a.text)}</span></div>`).join('')}</div>` : ''}
     <div class="grid g-2">
-      <div class="panel"><div class="panel-h"><h3>Receitas e despesas · 12 meses</h3><div class="legend"><span><i class="sw" style="background:var(--color-accent)"></i>Receitas</span><span><i class="sw" style="background:var(--color-neutral-500)"></i>Despesas</span></div></div>${barsIncomeExpense(series)}</div>
+      <div class="panel"><div class="panel-h"><h3>Receitas e despesas · 12 meses</h3><div class="legend"><span><i class="sw" style="background:var(--color-accent)"></i>Receitas</span><span><i class="sw" style="background:var(--color-neutral-500)"></i>Despesas</span></div></div>${series.some(m => m.income > 0 || m.expense > 0) ? barsIncomeExpense(series) : empty('Seus primeiros lançamentos aparecem aqui como barras de receitas e despesas, mês a mês.', '<button class="btn btn-primary btn-sm" data-act="new-tx"><i class="ph ph-plus"></i> Lançar agora</button>', 'ph-chart-bar')}</div>
       <div class="panel"><div class="panel-h"><h3>Orçamento de ${MONTHS[+c.todayYM.slice(5) - 1].toLowerCase()}</h3><a href="#/fin/budget" class="sub">ver tudo</a></div>
         ${budget.length ? budget.map(b => `<div style="margin-bottom:12px"><div class="row spread" style="font-size:13px;margin-bottom:5px"><span>${icon(catIcon(b.k))} ${b.k}</span><span class="num muted">${money(b.used, 0)} / ${money(b.plan, 0)}</span></div>${progress(b.r, { color: b.r > 1.0001 ? 'var(--color-accent-700)' : b.r > 0.85 ? DN : 'var(--color-accent)' })}</div>`).join('') : empty('Defina tetos por categoria para acompanhar aqui.', `<a class="btn btn-secondary btn-sm" href="#/fin/budget">Abrir orçamento</a>`)}</div>
     </div>
     <div class="grid g-2e" style="margin-top:12px">
       <div class="panel"><div class="panel-h"><h3>Próximas contas</h3><a href="#/fin/bills" class="sub">ver tudo</a></div>
-        ${bills.length ? `<div class="list">${bills.map(b => `<div class="li"><div class="li-ic">${icon(b.kind === 'card' ? 'ph ph-credit-card' : 'ph ph-receipt')}</div><div class="li-t"><b>${esc(b.name)}</b><span>vence ${fmtDM(b.date)}${b.date < c.today ? ' · <span class="dn">atrasada</span>' : ''}</span></div><div class="li-v num">${money(b.amount)}</div></div>`).join('')}</div>` : empty('Nenhuma conta em aberto neste mês.')}</div>
+        ${bills.length ? `<div class="list">${bills.map(b => `<div class="li"><div class="li-ic">${icon(b.kind === 'card' ? 'ph ph-credit-card' : 'ph ph-receipt')}</div><div class="li-t"><b>${esc(b.name)}</b><span>vence ${fmtDM(b.date)}${b.date < c.today ? ' · <span class="dn">atrasada</span>' : ''}</span></div><div class="li-v num">${money(b.amount)}</div></div>`).join('')}</div>` : empty('Tudo em dia: nenhuma conta em aberto neste mês.', '<a class="btn btn-secondary btn-sm" href="#/fin/bills"><i class="ph ph-plus"></i> Cadastrar conta</a>', 'ph-confetti')}</div>
       <div class="panel"><div class="panel-h"><h3>Contas</h3><a href="#/config" class="sub">gerenciar</a></div>
         ${c.accounts.length ? `<div class="list">${c.accounts.map(a => { const b = accountBalance(a, c.txs, c.today); return `<div class="li"><div class="li-ic">${icon('ph ph-bank')}</div><div class="li-t"><b>${esc(a.name)}</b></div><div class="li-v num" style="color:${b < 0 ? DN : 'inherit'}">${money(b)}</div></div>`; }).join('')}</div>` : empty('Cadastre suas contas em Configurações.')}</div>
     </div>`;

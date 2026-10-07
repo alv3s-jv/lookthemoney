@@ -3,7 +3,7 @@ import { store } from './store.js';
 import { app, memberName, getCtx, refreshAll, ensureSnapshots } from './app.js';
 import {
   money, smoney, pct, pctPlain, num, qtyFmt, gain, gainMoney, gainPct, col, arrow, kpi, tag, progress, empty, donut, perfChart, stackedBars, lotChart, icon, esc,
-  openModal, toast, confirmDialog, options, field, formData, errBox, ui,
+  openModal, toast, confirmDialog, options, field, formData, errBox, ui, countUp, sparkline, goalBar, confetti,
 } from './ui.js';
 import {
   CLASSES, CLASS_ORDER, position, perfSeries, perfMonthly, monthlyReturns, monthlyGrid, monthlyPatrimony, pctOfCdi, extraOverCdi, dividendsLast12m, yieldOnCost, rebalance, splitWithinClass, fixedIncomeValue, netDividend,
@@ -16,7 +16,7 @@ import {
   fmtDate, fmtDM, ymShort, MONTHS_SHORT, addMonthsISO, addMonthsYM, sum, groupBy, nf, parseNum, todayISO, uid, round2, daysBetween, addDays,
 } from './util.js';
 
-const CLS_COLOR = { ACAO_BR: 'var(--color-accent-400)', FII: 'var(--color-accent-600)', ETF: 'var(--color-accent-300)', EUA_BDR: 'var(--color-accent-700)', RENDA_FIXA: 'var(--color-neutral-400)', CRIPTO: 'var(--color-accent-200)' };
+const CLS_COLOR = { ACAO_BR: 'var(--c-acao)', FII: 'var(--c-fii)', ETF: 'var(--c-etf)', EUA_BDR: 'var(--c-eua)', RENDA_FIXA: 'var(--c-rf)', CRIPTO: 'var(--c-cripto)' };
 const hhmm = ts => new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 /** Selo "Atualizado às HH:MM ↻" — clique força refresh. */
@@ -64,13 +64,97 @@ function gridPanel(c, mr, todayYM) {
 function confer(c, pd) {
   const P = c.portfolio, inv = sum(c.flows, f => f.amount), gain = P.total - inv, ret = gain + P.prov;
   const bad = (gain > 1 && pd.port < -0.02) || (gain < -1 && pd.port > 0.02) || pd.port < -0.95;
-  return `<div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Conferência em R$</h3><span class="sub">cálculo direto, sem histórico diário</span></div>
+  return `<div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Quanto você realmente ganhou</h3><span class="sub">em reais, direto dos seus aportes e do valor de hoje</span></div>
     <div class="grid g-kpi">${kpi({ label: 'Aportado (líquido)', value: money(inv, 0) })}${kpi({ label: 'Patrimônio hoje', value: money(P.total, 0) })}${kpi({ label: 'Ganho de capital', value: gainMoney(gain, 0), hint: inv > 0 ? pct(gain / inv, 2) + ' sobre o aportado' : '' })}${kpi({ label: 'Proventos recebidos', value: money(P.prov, 0), hint: `retorno total ${gainMoney(ret, 0)}` })}</div>
     ${bad ? '<div class="notice warn" style="margin-top:10px"><i class="ph ph-warning"></i><span>O gráfico (TWR) contradiz o ganho em R$ acima — o histórico diário está distorcido. Clique em <b>Recalcular histórico</b>; se persistir, me avise.</span></div>' : ''}
-    <div class="hint" style="margin-top:8px">Como ler: o ganho em R$ soma tudo o que você colocou e o que vale hoje. A rentabilidade (TWR) remove o efeito dos aportes para comparar com o CDI — por isso um aporte grande recente não "melhora" nem "piora" o percentual.</div></div>`;
+    <details class="how"><summary>Como é calculado</summary><div class="hint" style="margin-top:6px">O ganho em reais soma tudo o que você colocou e o que vale hoje. A rentabilidade (cotização, ou TWR) remove o efeito dos aportes para comparar com o CDI — por isso um aporte grande recente não "melhora" nem "piora" o percentual.</div></details></div>`;
 }
 
 const periodChips = () => `<div class="chips">${Object.keys(PERIODS).map(p => `<button class="chip ${app.period === p ? 'on' : ''}" data-act="period" data-v="${p}">${p}</button>`).join('')}</div>`;
+
+
+// =============================================================================================== Resumo: herói, insights e metas
+const MILESTONES = [10000, 15000, 20000, 25000, 30000, 40000, 50000, 75000, 100000, 150000, 200000, 500000, 1000000];
+const goalOf = (k, d) => +store.setting(k, d) || d;
+
+function heroCard(c, pd) {
+  const P = c.portfolio, ret = P.valorizacao + P.prov, trend = c.snaps.slice(-30).map(s => s.value), upDay = P.dayValue >= 0;
+  const periodTxt = app.period === 'Tudo' ? 'desde o início' : `em ${app.period}`;
+  const msg = pd
+    ? `Sua carteira rende <b>${pd.pctCdi == null ? '—' : nf(pd.pctCdi, 0) + '% do CDI'}</b> ${periodTxt} (${pct(pd.port, 1)} contra ${pct(pd.cdi, 1)}). ${ret >= 0 ? `Até agora você ganhou <b>${money(ret, 0)}</b> somando valorização e proventos.` : `Hoje o saldo está <b>${money(Math.abs(ret), 0)}</b> abaixo do investido, contando proventos.`}`
+    : 'O histórico se forma a partir do primeiro aporte e se completa a cada dia em que o app é aberto.';
+  const stat = (label, v, sub) => `<div class="hero-stat"><span>${label}</span><b class="num">${v}</b>${sub ? `<small class="num">${sub}</small>` : ''}</div>`;
+  return `<div class="hero-card">
+    <div><div class="hero-l"><i class="ph ph-sparkle"></i> Patrimônio investido</div>
+      <div class="hero-v num">${sk(c, countUp(P.total, { d: 2, key: 'hero-total' }))}</div>
+      <div class="hero-day ${upDay ? 'up' : 'dn'}">${sk(c, `${gainMoney(P.dayValue)} · ${pct(P.dayPct, 2)} hoje`)}</div>
+      <div class="hero-msg">${msg}</div></div>
+    <div class="hero-r">${trend.length > 2 && !ui.hidden ? sparkline(trend) : ''}${trend.length > 2 && !ui.hidden ? `<div class="hero-cap"><span>últimos ${Math.min(30, trend.length)} dias</span><span>${pct(trend[trend.length - 1] / (trend[0] || 1) - 1, 1)}</span></div>` : ''}</div>
+    <div class="hero-stats">
+      ${stat('Total investido', money(P.cost), '')}
+      ${stat('Valorização', sk(c, gainMoney(P.valorizacao, 0)), sk(c, gainPct(P.cost ? P.valorizacao / P.cost : 0)))}
+      ${stat('Proventos recebidos', money(P.prov, 0), `${pct(P.cost ? P.prov / P.cost : 0, 1).replace('+', '')} sobre o custo`)}
+      ${stat('Retorno total', sk(c, gainMoney(ret, 0)), sk(c, gainPct(P.cost ? ret / P.cost : 0)))}
+    </div></div>`;
+}
+
+/** Avisos acionáveis: o app avisa em vez de só mostrar. */
+function insights(c, pd) {
+  const P = c.portfolio, today = c.today, out = [], tick = id => c.assets.find(a => a.id === id)?.ticker || '';
+  for (const d of c.dividends) {
+    const dd = daysBetween(today, d.payDate);
+    if (dd >= 0 && dd <= 7) out.push({ p: 1, tone: 'up', ic: 'ph-coins', to: 'inv/proventos', text: `<b>${esc(tick(d.assetId))}</b> paga <b>${money(d.amount)}</b> ${dd === 0 ? 'hoje' : dd === 1 ? 'amanhã' : `em ${dd} dias (${fmtDM(d.payDate)})`}` });
+    else if (dd < 0 && dd >= -5) out.push({ p: 2, tone: 'up', ic: 'ph-check-circle', to: 'inv/proventos', text: `Provento creditado: <b>${money(d.amount)}</b> de <b>${esc(tick(d.assetId))}</b> (${fmtDM(d.payDate)})` });
+  }
+  const tsum = sum(Object.values(c.targets));
+  if (tsum > 0 && P.total > 0) {
+    const diffs = CLASS_ORDER.map(k => ({ k, d: (P.byClass[k].weight - (c.targets[k] || 0) / 100) * 100 })).filter(x => Math.abs(x.d) > c.tolerance).sort((a, b) => a.d - b.d);
+    const under = diffs[0], over = diffs[diffs.length - 1];
+    if (under && under.d < 0) out.push({ p: 3, tone: 'warn', ic: 'ph-scales', to: 'inv/alocacao', text: `<b>${CLASSES[under.k]}</b> está ${nf(Math.abs(under.d), 1)} p.p. abaixo da meta — bom lugar para o próximo aporte` });
+    if (over && over.d > 0 && over !== under) out.push({ p: 4, tone: 'info', ic: 'ph-scales', to: 'inv/alocacao', text: `<b>${CLASSES[over.k]}</b> passou ${nf(over.d, 1)} p.p. da meta` });
+  }
+  const mv = [...P.active].filter(h => h.dayPct != null && isFinite(h.dayPct)).sort((a, b) => Math.abs(b.dayPct) - Math.abs(a.dayPct))[0];
+  if (mv && Math.abs(mv.dayPct) >= 0.02) out.push({ p: 5, tone: mv.dayPct > 0 ? 'up' : 'dn', ic: mv.dayPct > 0 ? 'ph-trend-up' : 'ph-trend-down', to: 'inv/posicoes', text: `<b>${esc(mv.asset.ticker)}</b> ${mv.dayPct > 0 ? 'sobe' : 'cai'} ${nf(Math.abs(mv.dayPct) * 100, 1)}% hoje` });
+  if (pd && pd.pctCdi != null) out.push(pd.pctCdi >= 100 ? { p: 6, tone: 'up', ic: 'ph-trophy', to: 'inv/desempenho', text: `Você está <b>acima do CDI</b> (${nf(pd.pctCdi, 0)}%)` } : { p: 6, tone: 'warn', ic: 'ph-flag', to: 'inv/desempenho', text: `Rendendo <b>${nf(pd.pctCdi, 0)}% do CDI</b> — veja o que puxa o resultado` });
+  const next = MILESTONES.find(m => m > P.total);
+  if (next && P.total > 0) out.push({ p: 7, tone: 'info', ic: 'ph-flag-banner', to: 'inv/resumo', text: `Próximo marco: <b>${money(next, 0)}</b> — faltam ${money(next - P.total, 0)}` });
+  out.sort((a, b) => a.p - b.p);
+  return out.length ? `<div class="insights" role="list">${out.slice(0, 6).map(i => `<button class="insight ${i.tone}" role="listitem" data-act="nav" data-to="${i.to}"><i class="ph ${i.ic}"></i><span>${i.text}</span></button>`).join('')}</div>` : '';
+}
+
+function goalsPanel(c) {
+  const P = c.portfolio, gP = goalOf('goalPatrimonio', 50000), gD = goalOf('goalProv', 500);
+  const first = c.investTx.reduce((m, t) => (t.date < m ? t.date : m), c.today);
+  const months = Math.max(1, Math.min(12, (+c.today.slice(0, 4) - +first.slice(0, 4)) * 12 + (+c.today.slice(5, 7) - +first.slice(5, 7)) + 1));
+  const rec = sum(c.dividends.filter(d => d.payDate <= c.today && d.payDate >= addMonthsISO(c.today, -12)), d => +d.amount);
+  const avg = rec / months;
+  return `<div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Suas metas</h3><button class="btn btn-secondary btn-sm" data-act="edit-goals"><i class="ph ph-pencil-simple"></i> Ajustar</button></div>
+    ${goalBar({ label: 'Patrimônio investido', cur: P.total, target: gP, fmt: v => money(v, 0), icon: 'ph-mountains', color: 'linear-gradient(90deg, var(--color-accent-600), var(--c-eua))' })}
+    ${goalBar({ label: 'Proventos por mês (média)', cur: avg, target: gD, fmt: v => money(v, 0), icon: 'ph-coins', color: 'linear-gradient(90deg, var(--c-etf), var(--up))' })}
+    <div class="hint" style="margin-top:10px">A média de proventos divide o recebido nos últimos 12 meses pelos meses desde o primeiro aporte (no máximo 12).</div></div>`;
+}
+
+function editGoals() {
+  openModal({
+    title: 'Ajustar metas', body: `<div class="form-grid">${field('Patrimônio investido (R$)', `<input class="input num-in" name="gp" inputmode="decimal" value="${nf(goalOf('goalPatrimonio', 50000), 0)}">`)}${field('Proventos por mês (R$)', `<input class="input num-in" name="gd" inputmode="decimal" value="${nf(goalOf('goalProv', 500), 0)}">`)}</div>`,
+    actions: '<button class="btn btn-secondary" data-close>Cancelar</button><button class="btn btn-primary" data-ok>Salvar</button>',
+    onMount: api => api.q('[data-ok]').addEventListener('click', async () => {
+      const d = formData(api.el), gp = parseNum(d.gp), gd = parseNum(d.gd);
+      if (!(gp > 0) || !(gd > 0)) return toast('Use valores maiores que zero', { kind: 'error' });
+      await store.setSetting('goalPatrimonio', gp); await store.setSetting('goalProv', gd); api.close(); toast('Metas atualizadas', { kind: 'ok' });
+    }),
+  });
+}
+
+/** Comemora cada novo marco de patrimônio uma única vez. */
+function celebrate(c) {
+  const P = c.portfolio; if (!(P.total > 0) || c.quotes.loading || !c.quotes.fetchedAt || P.withoutQuote.length) return;
+  const reached = [...MILESTONES].reverse().find(m => m <= P.total); if (!reached) return;
+  let saved = 0; try { saved = +localStorage.getItem('ltm.milestone') || 0; } catch { /* ok */ }
+  if (reached <= saved) return;
+  try { localStorage.setItem('ltm.milestone', String(reached)); } catch { /* ok */ }
+  confetti(); toast(`Novo marco: ${money(reached, 0)} investidos!`, { kind: 'ok', ms: 5000 });
+}
 
 // =============================================================================================== Resumo
 export const resumo = {
@@ -83,18 +167,16 @@ export const resumo = {
     const ret = P.valorizacao + P.prov;
     return `${invHead(c, 'Minha carteira', `${P.active.length} ativos · ${c.assets.filter(a => a.assetClass === 'RENDA_FIXA').length ? 'renda fixa na curva' : ''}`)}
     ${warnQuotes(c)}
-    <div class="grid g-kpi">
-      <div class="kpi hero"><div class="kpi-l">Valor da carteira</div><div class="kpi-v num">${sk(c, money(P.total))}</div><div class="kpi-s">${sk(c, `${gainMoney(P.dayValue)} (${pct(P.dayPct, 2)}) hoje`)}</div></div>
-      ${kpi({ label: 'Total investido', value: money(P.cost) })}
-      ${kpi({ label: 'Valorização', value: sk(c, gainMoney(P.valorizacao, 0)), sub: sk(c, gainPct(P.cost ? P.valorizacao / P.cost : 0)) })}
-      ${kpi({ label: 'Proventos recebidos', value: money(P.prov, 0), sub: `${pct(P.cost ? P.prov / P.cost : 0, 1).replace('+', '')} s/ custo` })}
-      ${kpi({ label: 'Retorno total', value: sk(c, gainMoney(ret, 0)), sub: sk(c, gainPct(P.cost ? ret / P.cost : 0)), hint: 'valorização + proventos' })}
-    </div>
-    <div class="panel" style="margin-bottom:12px"><div class="panel-h"><div><h3>Desempenho vs CDI</h3><div class="sub">Rentabilidade acumulada, sem contar aportes como ganho</div></div>${periodChips()}</div>
+    ${insights(c, pd)}
+    ${heroCard(c, pd)}
+    <div class="panel" style="margin-bottom:12px"><div class="panel-h"><div><h3>Desempenho vs CDI</h3><div class="sub">Seu retorno frente ao CDI, mês a mês — aportes não contam como ganho</div></div>${periodChips()}</div>
       ${pd ? `<div class="row wrap" style="gap:28px;margin-bottom:10px"><div><div class="kpi-l">Carteira</div><div class="kpi-v num" style="font-size:20px;color:var(--color-accent-300)">${pct(pd.port, 1)}</div></div><div><div class="kpi-l">CDI</div><div class="kpi-v num" style="font-size:20px">${pct(pd.cdi, 1)}</div></div><div><div class="kpi-l">% do CDI</div><div class="kpi-v num" style="font-size:20px">${pd.pctCdi == null ? '—' : nf(pd.pctCdi, 0) + '%'}</div></div><div><div class="kpi-l">R$ a mais que o CDI</div><div class="kpi-v num" style="font-size:20px">${gainMoney(pd.extra, 0)}</div></div></div>${perfChart(pd.pts)}<div class="legend" style="margin-top:8px"><span><i class="sw" style="background:var(--color-accent)"></i>Carteira</span><span><i class="sw" style="background:var(--color-neutral-400)"></i>CDI (tracejado)</span>${pd.est ? '<span class="muted">· parte do histórico é estimada</span>' : ''}</div>` : empty(c.cdi.empty ? 'Sem dados do CDI (BCB). Verifique a conexão e clique em atualizar.' : 'O histórico se forma a partir do primeiro aporte e se completa a cada dia em que o app é aberto.')}</div>
-    <div class="grid g-2e"><div class="panel"><div class="panel-h"><h3>Alocação por classe</h3><a href="#/inv/alocacao" class="sub">metas</a></div><div class="row wrap" style="gap:20px">${donut(slices, { center: `<span class="kpi-l">Total</span><b class="num" style="font-size:15px">${money(P.total, 0)}</b>` })}<div class="grow" style="min-width:180px">${slices.map(s => `<div class="row spread" style="font-size:13px;padding:4px 0"><span><i class="sw" style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${s.color};margin-right:8px"></i>${s.label}</span><span class="num">${pctPlain(s.value / P.total, 1)} <span class="muted">${money(s.value, 0)}</span></span></div>`).join('')}</div></div></div>
-      <div class="panel"><div class="panel-h"><h3>Maiores movimentos hoje</h3></div>${movers.length ? `<div class="list">${movers.map(h => `<div class="li clk" data-act="open-asset" data-t="${esc(h.asset.ticker)}" style="cursor:pointer"><div class="li-t"><b class="tick">${esc(h.asset.ticker)}</b><span>${esc(h.asset.name)}</span></div><div class="li-v num">${gainPct(h.dayPct, 2)}<br><span class="sub-s">${gainMoney(h.dayValue, 0)}</span></div></div>`).join('')}</div>` : empty('Sem variação para mostrar (mercado fechado ou sem cotações). Mostra o último pregão quando disponível.')}</div></div>`;
+    ${goalsPanel(c)}
+    <div class="grid g-2e"><div class="panel"><div class="panel-h"><h3>Alocação por classe</h3><a href="#/inv/alocacao" class="sub">metas</a></div><div class="row wrap" style="gap:20px">${donut(slices, { center: `<span class="kpi-l">Total</span><b class="num" style="font-size:15px">${money(P.total, 0)}</b>` })}<div class="grow" style="min-width:180px">${slices.map(s => `<div class="row spread" style="font-size:13px;padding:4px 0"><span><i class="hi-dot" style="background:${s.color}"></i>${s.label}</span><span class="num">${pctPlain(s.value / P.total, 1)} <span class="muted">${money(s.value, 0)}</span></span></div>`).join('')}</div></div></div>
+      <div class="panel"><div class="panel-h"><h3>Maiores movimentos hoje</h3></div>${movers.length ? `<div class="list">${movers.map(h => `<div class="li clk" data-act="open-asset" data-t="${esc(h.asset.ticker)}" style="cursor:pointer"><div class="li-t"><b class="tick">${esc(h.asset.ticker)}</b><span>${esc(h.asset.name)}</span></div><div class="li-v num">${gainPct(h.dayPct, 2)}<br><span class="sub-s">${gainMoney(h.dayValue, 0)}</span></div></div>`).join('')}</div>` : empty('Sem variação para mostrar (mercado fechado ou sem cotações). Mostra o último pregão quando disponível.', '', 'ph-moon-stars')}</div></div>`;
   },
+  actions: { 'edit-goals': () => editGoals() },
+  onMount(el, c) { celebrate(c); },
 };
 
 // =============================================================================================== Desempenho
@@ -106,7 +188,7 @@ export const desempenho = {
     const mr = monthlyReturns(c.snaps, c.cdi).slice(-24).reverse();
     const maxAbs = Math.max(0.01, ...mr.flatMap(m => [Math.abs(m.port), Math.abs(m.cdi)]));
     const estN = c.snaps.filter(s => s.est).length;
-    return `${invHead(c, 'Desempenho', 'Carteira vs CDI — cotização (TWR): aportes e resgates não contam como rendimento', `<button class="btn btn-secondary" data-act="rebuild"><i class="ph ph-clock-counter-clockwise"></i> Recalcular histórico</button>`)}
+    return `${invHead(c, 'Desempenho', 'Quanto sua carteira rende frente ao CDI — aportes e resgates não contam como rendimento', `<button class="btn btn-secondary" data-act="rebuild"><i class="ph ph-clock-counter-clockwise"></i> Recalcular histórico</button>`)}
     ${pd ? `<div class="grid g-kpi">${kpi({ label: 'Carteira', value: pct(pd.port, 2), hint: `desde ${fmtDate(pd.d0)}` })}${kpi({ label: 'CDI', value: pct(pd.cdi, 2) })}${kpi({ label: '% do CDI', value: pd.pctCdi == null ? '—' : nf(pd.pctCdi, 0) + '%', sub: pd.pctCdi == null ? '' : pd.pctCdi >= 100 ? gain(1, 'acima do CDI') : gain(-1, 'abaixo do CDI') })}${kpi({ label: 'R$ a mais que o CDI', value: gainMoney(pd.extra, 0), hint: pd.est ? 'ponderado por dinheiro · histórico estimado' : 'vs. cada aporte rendendo 100% do CDI' })}</div>` : ''}
     ${pd ? confer(c, pd) : ''}
     ${gridPanel(c, monthlyReturns(c.snaps, c.cdi), c.todayYM)}
