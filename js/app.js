@@ -1,6 +1,6 @@
 // Estado compartilhado da aplicação, contexto derivado (memoizado) e serviços de atualização.
 import { store } from './store.js';
-import { todayISO, currentYM, addMonthsYM, addMonthsISO, addDays, groupBy, uid } from './util.js';
+import { todayISO, currentYM, addMonthsYM, addMonthsISO, addDays, groupBy, uid, daysBetween } from './util.js';
 import { buildPortfolio, backfillSnapshots, snapshotsWithFlows, flowList, snapshotsInconsistent } from './portfolio.js';
 import { makeCdi, CLASS_ORDER, monthsDiff } from './calc.js';
 import { refreshQuotes, getCdi, getIpca, fetchHistory, hasLiveSource } from './quotes.js';
@@ -14,7 +14,7 @@ export const app = {
   user: null, adapter: null, period: '12M', booted: false,
 };
 
-const HIST_KEY = 'ltm.hist.v1';
+const HIST_KEY = 'ltm.hist.v2';
 const loadJ = k => { try { return JSON.parse(localStorage.getItem(k)) || null; } catch { return null; } };
 const saveJ = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ok */ } };
 
@@ -28,7 +28,7 @@ export function getCtx() {
   const D = store.data;
   const q = store.quotes;
   const cdi = q.cdiIdx || makeCdi([]);
-  const divs = [...D.dividends, ...autoDividends(D.assets, D.investTx, D.dividends, histCache(), today)]; // manuais + automáticos
+  const divs = [...D.dividends, ...autoDividends(D.assets, D.investTx, D.dividends, histCache(), today, q.fx?.rate || 0)]; // manuais + automáticos
   const ctx = {
     today, todayYM: today.slice(0, 7), ym: app.ym,
     accounts: D.accounts, cards: D.cards, txs: D.transactions, bills: D.bills, billPayments: D.billPayments,
@@ -101,7 +101,9 @@ export async function loadHistoryFor(assets) {
   const token = brapiToken();
   for (const a of assets.filter(hasLiveSource)) {
     if (cache.h[a.ticker]) continue;
-    try { cache.h[a.ticker] = await fetchHistory(a, token); } catch { cache.h[a.ticker] = []; }
+    const firstBuy = store.get('investTx').filter(t => t.assetId === a.id).reduce((m, t) => (t.date < m ? t.date : m), todayISO());
+    const age = daysBetween(firstBuy, todayISO()), range = age <= 80 ? '3mo' : age <= 170 ? '6mo' : age <= 350 ? '1y' : age <= 710 ? '2y' : '5y'; // histórico desde a 1ª compra (fonte: Yahoo via função)
+    try { cache.h[a.ticker] = await fetchHistory(a, token, range); } catch { cache.h[a.ticker] = []; }
     saveJ(HIST_KEY, cache);
     await new Promise(r => setTimeout(r, 350));
   }
