@@ -203,6 +203,30 @@ export function monthlyReturns(snaps, cdi) {
 }
 
 /**
+ * Série MENSAL acumulada (um ponto por fim de mês, como o Investidor10): encadeia os retornos mensais da carteira e do CDI.
+ * `fromYM`: primeiro mês incluído (null = tudo). Ponto 0 = fechamento do mês anterior (ou 1º dia do histórico), acumulado 0%.
+ * Saída: [{date, ym, port, cdi, est, partial}] — o último mês termina no último snapshot (mês em andamento).
+ */
+export function perfMonthly(snaps, cdi, fromYM = null) {
+  const tw = twrSeries(snaps);
+  if (!tw.length) return [];
+  const mr = monthlyReturns(snaps, cdi);
+  const lastOf = {}; for (const x of tw) lastOf[ymOf(x.date)] = x;
+  const sel = fromYM ? mr.filter(m => m.ym >= fromYM) : mr;
+  if (!sel.length) return [];
+  const prev = mr[mr.indexOf(sel[0]) - 1];
+  const startDate = prev ? lastOf[prev.ym].date : tw[0].date;
+  const pts = [{ date: startDate, ym: ymOf(startDate), port: 0, cdi: 0, est: false, partial: false }];
+  let p = 1, c = 1;
+  sel.forEach((m, i) => {
+    p *= 1 + m.port; c *= 1 + m.cdi;
+    const l = lastOf[m.ym];
+    pts.push({ date: l.date, ym: m.ym, port: p - 1, cdi: c - 1, est: !!l.est, partial: i === sel.length - 1 && m.ym === ymOf(tw[tw.length - 1].date) });
+  });
+  return pts;
+}
+
+/**
  * Quadro anual no estilo "Jan…Dez": rentabilidade de cada mês (encadeada, TWR), retorno do ano e acumulado desde o início.
  * Entrada: saída de monthlyReturns. Saída: [{ year, months:[{port,cdi}|null ×12], port, cdi, accPort, accCdi }].
  */

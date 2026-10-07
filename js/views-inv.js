@@ -6,7 +6,7 @@ import {
   openModal, toast, confirmDialog, options, field, formData, errBox, ui,
 } from './ui.js';
 import {
-  CLASSES, CLASS_ORDER, position, perfSeries, monthlyReturns, monthlyGrid, monthlyPatrimony, pctOfCdi, extraOverCdi, dividendsLast12m, yieldOnCost, rebalance, splitWithinClass, fixedIncomeValue, netDividend,
+  CLASSES, CLASS_ORDER, position, perfSeries, perfMonthly, monthlyReturns, monthlyGrid, monthlyPatrimony, pctOfCdi, extraOverCdi, dividendsLast12m, yieldOnCost, rebalance, splitWithinClass, fixedIncomeValue, netDividend,
 } from './calc.js';
 import { UP, DN, WARN, INDEXERS, APORTE_CAT } from './meta.js';
 import { buyForm, dividendForm, assetForm, targetsForm, deleteInvestTx } from './forms-inv.js';
@@ -38,8 +38,8 @@ const warnQuotes = (c) => { const p = c.portfolio; return p.withoutQuote.length 
 const PERIODS = { '6M': 6, '12M': 12, '24M': 24, Tudo: 0 };
 function perfData(c) {
   const snaps = c.snaps; if (snaps.length < 2) return null;
-  const n = PERIODS[app.period], from = n ? addMonthsISO(c.today, -n) : null;
-  const pts = perfSeries(snaps, c.cdi, from);
+  const n = PERIODS[app.period], from = n ? addMonthsYM(c.todayYM, -(n - 1)) : null;
+  const pts = perfMonthly(snaps, c.cdi, from); // mensal: um ponto por fim de mês
   if (pts.length < 2) return null;
   const last = pts[pts.length - 1], d0 = pts[0].date;
   const s0 = snaps.find(s => s.date === d0);

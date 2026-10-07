@@ -229,3 +229,21 @@ test('monthlyPatrimony: aplicado + retorno total (ganho + proventos) por mês', 
   const p = C.monthlyPatrimony(snaps, flows, [], '2026-05-15');
   assert.equal(p[2].partial, true);
 });
+
+test('perfMonthly: um ponto por mês, acumulado encadeado igual à grade mensal', () => {
+  const cdi = C.makeCdi([{ date: '2026-01-01', daily: 0.0004 }].length ? [] : []);
+  const snaps = [];
+  let v = 1000; const days = [];
+  for (let d = new Date(Date.UTC(2026, 0, 1)); d <= new Date(Date.UTC(2026, 3, 15)); d.setUTCDate(d.getUTCDate() + 1)) { v *= 1.001; snaps.push({ id: d.toISOString().slice(0, 10), date: d.toISOString().slice(0, 10), value: v, est: false, netFlow: 0, income: 0 }); }
+  const all = C.perfMonthly(snaps, cdi);
+  assert.equal(all.length, 5); // início + jan, fev, mar, abr
+  assert.equal(all[0].port, 0);
+  assert.ok(all[4].partial);
+  const mr = C.monthlyReturns(snaps, cdi);
+  const chained = mr.reduce((a, m) => a * (1 + m.port), 1) - 1;
+  near(all[4].port, chained);
+  const last3 = C.perfMonthly(snaps, cdi, '2026-03');
+  assert.equal(last3.length, 3);
+  assert.equal(last3[0].ym, '2026-02');
+  near((1 + last3[2].port), (1 + all[4].port) / (1 + all[2].port));
+});

@@ -123,8 +123,9 @@ export function perfChart(pts, { w = 720, h = 250 } = {}) {
   const line = k => P.map((p, i) => `${X(i).toFixed(1)},${Y(p[k]).toFixed(1)}`).join(' ');
   g += `<polyline points="${line('cdi')}" fill="none" stroke="var(--color-neutral-400)" stroke-width="1.6" stroke-dasharray="5 4"/>`;
   g += `<polyline points="${line('port')}" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linejoin="round"/>`;
+  if (P.length <= 40) g += P.map((p, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(p.port).toFixed(1)}" r="3" fill="var(--color-accent)"/>`).join('');
   const nT = Math.min(6, P.length), xl = [];
-  for (let k = 0; k < nT; k++) { const i = Math.round((k / (nT - 1)) * (P.length - 1)); const [y, m] = P[i].date.split('-'); xl.push(`<text x="${X(i)}" y="${h - 8}" text-anchor="${k === 0 ? 'start' : k === nT - 1 ? 'end' : 'middle'}" class="ax">${MONTHS_SHORT[+m - 1]}/${y.slice(2)}</text>`); }
+  for (let k = 0; k < nT; k++) { const i = Math.round((k / (nT - 1)) * (P.length - 1)); const [y, m] = (P[i].ym || P[i].date).split('-'); xl.push(`<text x="${X(i)}" y="${h - 8}" text-anchor="${k === 0 ? 'start' : k === nT - 1 ? 'end' : 'middle'}" class="ax">${MONTHS_SHORT[+m - 1]}/${y.slice(2)}</text>`); }
   g += xl.join('');
   const id = 'pf' + ++perfSeq;
   perfReg.set(id, { P, X, Y, w, h, L, R, T, B });
@@ -143,7 +144,7 @@ export function bindCharts(root) {
       xh.setAttribute('x1', x); xh.setAttribute('x2', x); dp.setAttribute('cx', x); dp.setAttribute('cy', d.Y(p.port)); dc.setAttribute('cx', x); dc.setAttribute('cy', d.Y(p.cdi));
       [xh, dp, dc].forEach(n => (n.style.display = ''));
       const diff = p.port - p.cdi;
-      tip.innerHTML = `<b>${fmtDate(p.date)}</b>${p.est ? ' <span class="muted">(estimado)</span>' : ''}<br>Carteira <b class="num">${nf(p.port * 100, 2)}%</b><br>CDI <b class="num">${nf(p.cdi * 100, 2)}%</b><br><span style="color:${col(diff)}">${arrow(diff)} ${nf(Math.abs(diff) * 100, 2)} p.p.</span>`;
+      tip.innerHTML = `<b>${p.ym ? (i === 0 ? 'Início · ' + fmtDate(p.date) : ymShort(p.ym) + (p.partial ? ' (em andamento)' : '')) : fmtDate(p.date)}</b>${p.est ? ' <span class="muted">(estimado)</span>' : ''}<br>Carteira <b class="num">${nf(p.port * 100, 2)}%</b><br>CDI <b class="num">${nf(p.cdi * 100, 2)}%</b><br><span style="color:${col(diff)}">${arrow(diff)} ${nf(Math.abs(diff) * 100, 2)} p.p.</span>`;
       tip.style.display = '';
       const px = (x / d.w) * rc.width; tip.style.left = clamp(px + 12, 0, rc.width - 140) + 'px'; tip.style.top = '8px';
     };
