@@ -247,3 +247,9 @@ test('perfMonthly: um ponto por mês, acumulado encadeado igual à grade mensal'
   assert.equal(last3[0].ym, '2026-02');
   near((1 + last3[2].port), (1 + all[4].port) / (1 + all[2].port));
 });
+
+test('accountBalance: aportes e resgates de investimentos não mexem no saldo da conta', () => {
+  const acc = { id: 'a', initialBalance: 1000 };
+  const txs = [{ accountId: 'a', kind: 'receita', amount: 500, date: '2026-10-01' }, { accountId: 'a', kind: 'despesa', amount: -200, date: '2026-10-02' }, { accountId: 'a', kind: 'aporte', amount: -3000, date: '2026-10-03' }, { accountId: 'a', kind: 'resgate', amount: 400, date: '2026-10-04' }];
+  assert.equal(C.accountBalance(acc, txs), 1300);
+});
