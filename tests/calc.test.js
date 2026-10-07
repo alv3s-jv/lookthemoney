@@ -206,3 +206,12 @@ test('twrSeries distribui o retorno de trecho estimado em vez de concentrá-lo n
   assert.ok(s[4].twr > 0 && s[4].twr < 0.10);
   for (let i = 1; i < 9; i++) assert.ok(s[i].twr >= s[i - 1].twr);
 });
+
+test('monthlyGrid: retorno do ano e acumulado encadeados', async () => {
+  const { monthlyGrid } = await import('../js/calc.js');
+  const g = monthlyGrid([{ ym: '2026-03', port: 0.003, cdi: 0.01 }, { ym: '2026-04', port: 0.0151, cdi: 0.01 }, { ym: '2026-05', port: -0.0407, cdi: 0.01 }, { ym: '2027-01', port: 0.02, cdi: 0.01 }]);
+  assert.equal(g.length, 2);
+  assert.equal(g[0].months[2].port, 0.003); assert.equal(g[0].months[0], null);
+  assert.ok(Math.abs(g[0].port - (1.003 * 1.0151 * 0.9593 - 1)) < 1e-12);
+  assert.ok(Math.abs(g[1].accPort - (1.003 * 1.0151 * 0.9593 * 1.02 - 1)) < 1e-12);
+});

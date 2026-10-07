@@ -6,7 +6,7 @@ import {
   openModal, toast, confirmDialog, options, field, formData, errBox, ui,
 } from './ui.js';
 import {
-  CLASSES, CLASS_ORDER, position, perfSeries, monthlyReturns, pctOfCdi, extraOverCdi, dividendsLast12m, yieldOnCost, rebalance, splitWithinClass, fixedIncomeValue, netDividend,
+  CLASSES, CLASS_ORDER, position, perfSeries, monthlyReturns, monthlyGrid, pctOfCdi, extraOverCdi, dividendsLast12m, yieldOnCost, rebalance, splitWithinClass, fixedIncomeValue, netDividend,
 } from './calc.js';
 import { UP, DN, WARN, INDEXERS, APORTE_CAT } from './meta.js';
 import { buyForm, dividendForm, assetForm, targetsForm, deleteInvestTx } from './forms-inv.js';
@@ -46,6 +46,18 @@ function perfData(c) {
   const flows = c.flows.filter(f => f.date > d0);
   const hyp = (s0?.value || 0) * c.cdi.factor(d0, c.today) + sum(flows, f => f.amount * c.cdi.factor(f.date, c.today));
   return { pts, port: last.port, cdi: last.cdi, pctCdi: pctOfCdi(last.port, last.cdi), extra: c.portfolio.total - hyp, d0, est: pts.some(p => p.est) };
+}
+
+/** Quadro mensal (Jan–Dez) no estilo do Investidor10: carteira e CDI por mês, retorno do ano e acumulado. */
+function gridPanel(c, mr, todayYM) {
+  const G = monthlyGrid(mr);
+  if (!G.length) return '';
+  const cell = (m, cur) => (m ? `<td class="r num ${m.port > 0.00005 ? 'up' : m.port < -0.00005 ? 'dn' : ''}" ${cur ? 'title="mês em andamento"' : ''}>${nf(m.port * 100, 2)}%${cur ? '*' : ''}</td>` : '<td class="r muted">-</td>');
+  const cdiCell = m => (m ? `<td class="r num muted">${nf(m.cdi * 100, 2)}%</td>` : '<td class="r muted">-</td>');
+  const head = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const rows = G.map(g => `<tr><td><b>${g.year}</b><div class="sub-s">Carteira</div></td>${g.months.map((m, i) => cell(m, `${g.year}-${String(i + 1).padStart(2, '0')}` === todayYM)).join('')}<td class="r num ${g.port >= 0 ? 'up' : 'dn'}"><b>${nf(g.port * 100, 2)}%</b></td><td class="r num ${g.accPort >= 0 ? 'up' : 'dn'}"><b>${nf(g.accPort * 100, 2)}%</b></td></tr>
+    <tr><td><div class="sub-s">CDI</div></td>${g.months.map(cdiCell).join('')}<td class="r num muted">${nf(g.cdi * 100, 2)}%</td><td class="r num muted">${nf(g.accCdi * 100, 2)}%</td></tr>`).join('');
+  return `<div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Rentabilidade por mês</h3><span class="sub">TWR: aportes e resgates não contam como rendimento · * mês em andamento</span></div><div class="tw"><table class="table"><thead><tr><th>Ano</th>${head.map(h => `<th class="r">${h}</th>`).join('')}<th class="r">Retorno anual</th><th class="r">Acumulado</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 /** Conferência em R$ (independe do histórico diário): se divergir do TWR em sinal, o histórico estimado está distorcido. */
@@ -97,6 +109,7 @@ export const desempenho = {
     return `${invHead(c, 'Desempenho', 'Carteira vs CDI — cotização (TWR): aportes e resgates não contam como rendimento', `<button class="btn btn-secondary" data-act="rebuild"><i class="ph ph-clock-counter-clockwise"></i> Recalcular histórico</button>`)}
     ${pd ? `<div class="grid g-kpi">${kpi({ label: 'Carteira', value: pct(pd.port, 2), hint: `desde ${fmtDate(pd.d0)}` })}${kpi({ label: 'CDI', value: pct(pd.cdi, 2) })}${kpi({ label: '% do CDI', value: pd.pctCdi == null ? '—' : nf(pd.pctCdi, 0) + '%', sub: pd.pctCdi == null ? '' : pd.pctCdi >= 100 ? gain(1, 'acima do CDI') : gain(-1, 'abaixo do CDI') })}${kpi({ label: 'R$ a mais que o CDI', value: gainMoney(pd.extra, 0), hint: pd.est ? 'ponderado por dinheiro · histórico estimado' : 'vs. cada aporte rendendo 100% do CDI' })}</div>` : ''}
     ${pd ? confer(c, pd) : ''}
+    ${gridPanel(c, monthlyReturns(c.snaps, c.cdi), c.todayYM)}
     <div class="panel" style="margin-bottom:12px"><div class="panel-h"><h3>Rentabilidade acumulada</h3>${periodChips()}</div>${pd ? perfChart(pd.pts) : empty('Ainda não há histórico suficiente.')}${estN ? `<div class="hint" style="margin-top:8px">${estN} dia(s) do histórico são estimados (sem cotação histórica disponível, o valor é carregado do dia anterior). Eles se corrigem sozinhos conforme o app é aberto diariamente.</div>` : ''}</div>
     <div class="panel"><div class="panel-h"><h3>Rentabilidade mês a mês</h3><span class="sub">a barra mostra a carteira; o traço claro, o CDI do mesmo mês</span></div>
       ${mr.length ? `<div class="tw"><table class="table"><thead><tr><th>Mês</th><th class="r">Carteira</th><th class="r">CDI</th><th class="r">% do CDI</th><th style="width:34%">Carteira vs CDI</th></tr></thead><tbody>${mr.map(m => `<tr><td>${ymShort(m.ym)}</td><td class="r num">${gainPct(m.port, 2)}</td><td class="r num">${pct(m.cdi, 2)}</td><td class="r num">${m.pctCdi == null ? '—' : nf(m.pctCdi, 0) + '%'}</td><td><div style="position:relative;height:10px;background:var(--color-neutral-800);border-radius:99px"><div style="position:absolute;left:0;top:0;bottom:0;width:${Math.max(1, Math.abs(m.port) / maxAbs * 100)}%;background:${m.port >= 0 ? 'var(--color-accent)' : DN};border-radius:99px"></div><div style="position:absolute;top:-3px;bottom:-3px;left:${Math.abs(m.cdi) / maxAbs * 100}%;width:2px;background:var(--color-text)"></div></div></td></tr>`).join('')}</tbody></table></div>` : empty('Sem meses fechados ainda.')}</div>`;

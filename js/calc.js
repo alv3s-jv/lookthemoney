@@ -202,6 +202,23 @@ export function monthlyReturns(snaps, cdi) {
   return out;
 }
 
+/**
+ * Quadro anual no estilo "Jan…Dez": rentabilidade de cada mês (encadeada, TWR), retorno do ano e acumulado desde o início.
+ * Entrada: saída de monthlyReturns. Saída: [{ year, months:[{port,cdi}|null ×12], port, cdi, accPort, accCdi }].
+ */
+export function monthlyGrid(mr) {
+  const years = {};
+  for (const m of mr) { const y = m.ym.slice(0, 4), i = +m.ym.slice(5, 7) - 1; (years[y] ||= Array(12).fill(null))[i] = { port: m.port, cdi: m.cdi }; }
+  const out = []; let accP = 1, accC = 1;
+  for (const y of Object.keys(years).sort()) {
+    const ms = years[y]; let p = 1, c = 1;
+    for (const m of ms) if (m) { p *= 1 + m.port; c *= 1 + m.cdi; }
+    accP *= p; accC *= c;
+    out.push({ year: +y, months: ms, port: p - 1, cdi: c - 1, accPort: accP - 1, accCdi: accC - 1 });
+  }
+  return out;
+}
+
 // =====================================================================
 // Proventos
 // =====================================================================
