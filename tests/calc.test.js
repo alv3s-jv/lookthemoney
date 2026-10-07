@@ -250,6 +250,6 @@ test('perfMonthly: um ponto por mês, acumulado encadeado igual à grade mensal'
 
 test('accountBalance: aportes e resgates de investimentos não mexem no saldo da conta', () => {
   const acc = { id: 'a', initialBalance: 1000 };
-  const txs = [{ accountId: 'a', kind: 'receita', amount: 500, date: '2026-10-01' }, { accountId: 'a', kind: 'despesa', amount: -200, date: '2026-10-02' }, { accountId: 'a', kind: 'aporte', amount: -3000, date: '2026-10-03' }, { accountId: 'a', kind: 'resgate', amount: 400, date: '2026-10-04' }];
+  const txs = [{ accountId: 'a', kind: 'receita', amount: 500, date: '2026-10-01' }, { accountId: 'a', kind: 'despesa', amount: -200, date: '2026-10-02' }, { accountId: 'a', kind: 'aporte', amount: -3000, date: '2026-10-03' }, { accountId: 'a', kind: 'resgate', amount: 400, date: '2026-10-04' }, { accountId: 'a', kind: 'transferencia', amount: -700, date: '2026-10-05' }];
   assert.equal(C.accountBalance(acc, txs), 1300);
 });

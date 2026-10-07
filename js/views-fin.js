@@ -59,7 +59,7 @@ export const overview = {
     const name = (store.setting('userName') || memberName(app.user?.id) || (app.user?.email || '').split('@')[0] || '').replace(/^./, m => m.toUpperCase());
     return `${head(`${new Date().getHours() < 12 ? 'Bom dia' : new Date().getHours() < 18 ? 'Boa tarde' : 'Boa noite'}${name && app.user?.id !== 'local' ? ', ' + esc(name) : ''}`, new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, m => m.toUpperCase()), `<button class="btn btn-primary" data-act="new-tx"><i class="ph ph-plus"></i> Novo lançamento</button>`)}
     <div class="grid g-kpi">
-      ${`<div class="kpi hero tone-gold"><div class="kpi-l"><i class="ph ph-vault kpi-ic"></i>Saldo em contas</div><div class="kpi-v num">${countUp(accBal, { key: 'ov-pat' })}</div><div class="kpi-s">saldo das contas · investimentos, proventos e rendimentos ficam na aba Investimentos</div></div>`}
+      ${`<div class="kpi hero tone-gold"><div class="kpi-l"><i class="ph ph-vault kpi-ic"></i>Saldo em Conta</div><div class="kpi-v num">${countUp(accBal, { key: 'ov-pat' })}</div><div class="kpi-s">${c.accounts.length ? c.accounts.map(a => `${esc(a.name)} ${money(accountBalance(a, c.txs, c.today))}`).join(' · ') : 'sem contas'}</div></div>`}
       ${kpi({ label: 'Receitas do mês', ic: 'ph ph-arrow-circle-down', tone: 'up', value: countUp(s.income, { key: 'ov-rec' }), sub: `${s.count} lançamentos` })}
       ${kpi({ label: 'Despesas do mês', ic: 'ph ph-arrow-circle-up', tone: 'dn', value: countUp(s.expense, { key: 'ov-des' }), sub: s.income > 0 ? `${Math.round(s.expense / s.income * 100)}% da receita` : '' })}
       ${kpi({ label: 'Saldo do mês', ic: 'ph ph-scales', tone: s.balance >= 0 ? 'teal' : 'dn', value: `<span style="color:${col(s.balance)}">${countUp(s.balance, { key: 'ov-sal' })}</span>`, sub: `após aportes de ${money(s.aporte, 0)}` })}
@@ -94,7 +94,7 @@ export const tx = {
     const days = groupBy(shown, t => t.date);
     const cats = [...new Set(c.txs.map(t => t.category))].sort();
     const rowHtml = t => {
-      const future = t.date > c.today, inc = t.kind === 'receita', ap = t.kind === 'aporte', neutral = t.kind === 'fatura' || t.kind === 'resgate';
+      const future = t.date > c.today, inc = t.kind === 'receita', ap = t.kind === 'aporte', neutral = t.kind === 'fatura' || t.kind === 'resgate' || t.kind === 'transferencia';
       const extra = [t.recurrence === 'monthly' ? 'recorrente' : '', t.installmentTotal > 1 ? `parcela ${t.installmentNo}/${t.installmentTotal}` : '', future ? 'agendado' : ''].filter(Boolean).join(' · ');
       return `<div class="li" data-id="${t.id}"><div class="li-ic ${inc ? 'in' : ap ? 'ap' : ''}">${icon(neutral ? 'ph ph-arrows-left-right' : catIcon(t.category))}</div>
         <div class="li-t"><b>${esc(t.description)}</b><span>${esc(t.category)} · ${esc(srcLabel(c, t))}${extra ? ' · ' + extra : ''}</span></div>
