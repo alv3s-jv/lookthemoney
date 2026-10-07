@@ -97,7 +97,7 @@ function controls() {
 function bodyHtml() {
   const rs = rows(), errs = Object.entries(S.errors);
   const noTok = !brapiToken() && !edgeOn();
-  return `${noTok ? '<div class="notice" style="margin-bottom:14px"><i class="ph ph-info"></i><span>A função de cotações (Supabase) não está ativa: sem ela e sem token da brapi só dá para analisar PETR4, VALE3, ITUB4 e MGLU3. Veja o passo a passo no README (Edge Function "mercado").</span></div>' : ''}
+  return `${noTok ? '<div class="notice" style="margin-bottom:14px"><i class="ph ph-info"></i><span>As cotações do Yahoo (função "mercado") estão indisponíveis agora — o app tenta de novo sozinho em alguns minutos; clique em atualizar para forçar. Enquanto isso, só dá para analisar PETR4, VALE3, ITUB4 e MGLU3.</span></div>' : ''}
   ${S.loading ? `<div class="notice" style="margin-bottom:14px"><i class="ph ph-arrows-clockwise spin"></i><span>Buscando fundamentos… ${S.prog[0]} de ${S.prog[1]}</span></div>` : ''}
   ${errs.length ? `<div class="notice warn" style="margin-bottom:14px"><i class="ph ph-warning"></i><span>Sem dados para: ${errs.map(([t, e]) => `${esc(t)} (${esc(e)})`).join(', ')}.</span></div>` : ''}
   ${rs.length ? triage(rs) + table(rs) : (S.loading ? '' : '<div class="panel"><div class="empty"><p>Sem dados ainda. Clique em atualizar.</p></div></div>')}${method()}

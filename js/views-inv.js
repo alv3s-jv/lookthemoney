@@ -78,7 +78,7 @@ const MILESTONES = [10000, 15000, 20000, 25000, 30000, 40000, 50000, 75000, 1000
 const goalOf = (k, d) => +store.setting(k, d) || d;
 
 function heroCard(c, pd) {
-  const P = c.portfolio, ret = P.valorizacao + P.prov, trend = c.snaps.slice(-30).map(s => s.value), upDay = P.dayValue >= 0;
+  const P = c.portfolio, ret = P.valorizacao + P.prov, trend = perfSeries(c.snaps, c.cdi, addDays(c.today, -30)).map(x => 1 + x.port), upDay = P.dayValue >= 0;
   const periodTxt = app.period === 'Tudo' ? 'desde o início' : `em ${app.period}`;
   const msg = pd
     ? `Sua carteira rende <b>${pd.pctCdi == null ? '—' : nf(pd.pctCdi, 0) + '% do CDI'}</b> ${periodTxt} (${pct(pd.port, 1)} contra ${pct(pd.cdi, 1)}). ${ret >= 0 ? `Até agora você ganhou <b>${money(ret, 0)}</b> somando valorização e proventos.` : `Hoje o saldo está <b>${money(Math.abs(ret), 0)}</b> abaixo do investido, contando proventos.`}`
@@ -89,7 +89,7 @@ function heroCard(c, pd) {
       <div class="hero-v num">${sk(c, countUp(P.total, { d: 2, key: 'hero-total' }))}</div>
       <div class="hero-day ${upDay ? 'up' : 'dn'}">${sk(c, `${gainMoney(P.dayValue)} · ${pct(P.dayPct, 2)} hoje`)}</div>
       <div class="hero-msg">${msg}</div></div>
-    <div class="hero-r">${trend.length > 2 && !ui.hidden ? sparkline(trend) : ''}${trend.length > 2 && !ui.hidden ? `<div class="hero-cap"><span>últimos ${Math.min(30, trend.length)} dias</span><span>${pct(trend[trend.length - 1] / (trend[0] || 1) - 1, 1)}</span></div>` : ''}</div>
+    <div class="hero-r">${trend.length > 2 && !ui.hidden ? sparkline(trend) : ''}${trend.length > 2 && !ui.hidden ? `<div class="hero-cap"><span>rentabilidade dos últimos 30 dias (sem aportes)</span><span>${pct(trend[trend.length - 1] / (trend[0] || 1) - 1, 1)}</span></div>` : ''}</div>
     <div class="hero-stats">
       ${stat('Total investido', money(P.cost), '')}
       ${stat('Valorização', sk(c, gainMoney(P.valorizacao, 0)), sk(c, gainPct(P.cost ? P.valorizacao / P.cost : 0)))}

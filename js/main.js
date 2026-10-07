@@ -16,13 +16,13 @@ import { txForm, accountForm } from './forms-fin.js';
 import { buyForm } from './forms-inv.js';
 
 const FIN_NAV = [['overview', 'Visão geral', 'ph ph-squares-four'], ['tx', 'Receitas e despesas', 'ph ph-arrows-down-up'], ['cards', 'Cartões', 'ph ph-credit-card'], ['bills', 'Contas a pagar', 'ph ph-calendar-check'], ['budget', 'Orçamento', 'ph ph-chart-pie-slice'], ['goals', 'Metas', 'ph ph-flag-pennant'], ['reports', 'Relatórios', 'ph ph-file-text']];
-const INV_NAV = [['mercado', 'Mercado', 'ph ph-chart-line'], ['teto', 'Preço-teto', 'ph ph-gauge'], ['resumo', 'Resumo', 'ph ph-squares-four'], ['patrimonio', 'Patrimônio', 'ph ph-chart-bar'], ['desempenho', 'Desempenho', 'ph ph-trend-up'], ['posicoes', 'Posições', 'ph ph-wallet'], ['proventos', 'Proventos', 'ph ph-coins'], ['alocacao', 'Alocação', 'ph ph-target']];
+const INV_NAV = [['resumo', 'Resumo', 'ph ph-squares-four'], ['mercado', 'Mercado', 'ph ph-chart-line'], ['teto', 'Preço-teto', 'ph ph-gauge'], ['patrimonio', 'Patrimônio', 'ph ph-chart-bar'], ['desempenho', 'Desempenho', 'ph ph-trend-up'], ['posicoes', 'Posições', 'ph ph-wallet'], ['proventos', 'Proventos', 'ph ph-coins'], ['alocacao', 'Alocação', 'ph ph-target']];
 const VIEWS = {
   fin: { overview: FIN.overview, tx: FIN.tx, cards: FIN.cards, bills: FIN.bills, budget: FIN.budget, goals: FIN.goals, reports: FIN.reports },
   inv: { mercado, teto, resumo: INV.resumo, patrimonio: INV.patrimonio, desempenho: INV.desempenho, posicoes: INV.posicoes, ativo: INV.ativo, proventos: INV.proventos, alocacao: INV.alocacao },
 };
 const lastRoute = { fin: 'overview', inv: 'resumo' };
-let param = null, view = null, moreModal = null;
+let param = null, view = null, moreModal = null, acctOpen = false;
 
 // ----------------------------------------------------------------------------------- roteador
 function parseHash() {
@@ -48,10 +48,9 @@ function shell(c) {
   const envSw = `<div class="envsw" role="tablist">${[['fin', 'Finanças', 'ph ph-wallet'], ['inv', 'Investimentos', 'ph ph-chart-line-up']].map(([k, l, i]) => `<button role="tab" aria-selected="${k === env}" class="${k === env ? 'on' : ''}" data-act="env" data-env="${k}"><i class="${i}"></i>${l}</button>`).join('')}</div>`;
   document.getElementById('side').innerHTML = `<div class="brand"><div class="brand-mark"><i class="ph ph-eye"></i></div>LookTheMoney</div>${envSw}
     <nav class="navlist" aria-label="Navegação"><span class="navlist-t">${env === 'inv' ? 'Investimentos' : 'Controle financeiro'}</span>${nav.map(([k, l, i]) => `<a class="navitem ${k === cur && app.route !== 'config' ? 'on' : ''}" href="#/${env}/${k}" ${k === cur && app.route !== 'config' ? 'aria-current="page"' : ''}><i class="${i}"></i><span>${l}</span>${env === 'fin' && k === 'bills' && badge ? `<span class="badge">${badge}</span>` : ''}</a>`).join('')}</nav>
-    <div class="side-foot"><button class="navitem" data-act="toggle-hidden" title="${ui.hidden ? 'Mostrar valores' : 'Ocultar valores'}"><i class="ph ph-eye${ui.hidden ? '-slash' : ''}"></i><span>${ui.hidden ? 'Mostrar valores' : 'Ocultar valores'}</span></button>
-      <a class="navitem ${app.route === 'config' ? 'on' : ''}" href="#/config"><i class="ph ph-gear"></i><span>Configurações</span></a>
-      <div class="me"><div class="avatar">${(app.cloud && memberAvatar(app.user?.id)) ? `<img src="${memberAvatar(app.user.id)}" alt="">` : initials}</div><div class="me-t"><span>${app.cloud ? 'Minha conta' : 'Modo local'}</span><span>${esc(app.cloud ? app.user?.email || '' : 'dados neste navegador')}</span></div></div></div>`;
-  document.getElementById('mtop').innerHTML = `${envSw}<button class="iconbtn" data-act="toggle-hidden" aria-label="${ui.hidden ? 'Mostrar valores' : 'Ocultar valores'}"><i class="ph ph-eye${ui.hidden ? '-slash' : ''}" style="font-size:20px"></i></button>`;
+    <div class="side-foot acct">${acctOpen ? `<div class="acct-menu" role="menu"><button class="navitem" role="menuitem" data-act="acct-go" data-to="config"><i class="ph ph-gear"></i><span>Configurações</span></button>${app.cloud ? `<button class="navitem" role="menuitem" data-act="acct-out"><i class="ph ph-sign-out"></i><span>Sair</span></button>` : ''}</div>` : ''}
+      <button class="me ${acctOpen || app.route === 'config' ? 'on' : ''}" data-act="acct-menu" aria-haspopup="menu" aria-expanded="${acctOpen}"><div class="avatar">${(app.cloud && memberAvatar(app.user?.id)) ? `<img src="${memberAvatar(app.user.id)}" alt="">` : initials}</div><div class="me-t"><span>${app.cloud ? 'Minha conta' : 'Modo local'}</span><span>${esc(app.cloud ? app.user?.email || '' : 'dados neste navegador')}</span></div><i class="ph ph-caret-${acctOpen ? 'down' : 'up'} me-c"></i></button></div>`;
+  document.getElementById('mtop').innerHTML = `${envSw}<button class="hide-pill" data-act="toggle-hidden" aria-label="${ui.hidden ? 'Mostrar valores' : 'Ocultar valores'}" title="${ui.hidden ? 'Mostrar valores' : 'Ocultar valores'}"><i class="ph ph-eye${ui.hidden ? '-slash' : ''}"></i><span>${ui.hidden ? 'Mostrar valores' : 'Ocultar valores'}</span></button>`;
   const tabs = env === 'inv'
     ? [['resumo', 'Resumo', 'ph ph-squares-four'], ['posicoes', 'Posições', 'ph ph-wallet'], ['__buy', 'Comprar', 'ph ph-plus', 1], ['proventos', 'Proventos', 'ph ph-coins'], ['__more', 'Mais', 'ph ph-dots-three-outline']]
     : [['overview', 'Início', 'ph ph-squares-four'], ['tx', 'Lançamentos', 'ph ph-arrows-down-up'], ['__tx', 'Lançar', 'ph ph-plus', 1], ['bills', 'Contas', 'ph ph-calendar-check'], ['__more', 'Mais', 'ph ph-dots-three-outline']];
@@ -100,6 +99,9 @@ const GLOBAL = {
   buy: () => buyForm(),
   'open-asset': el => go('inv/ativo/' + encodeURIComponent(el.dataset.t)),
   'toggle-hidden': () => { toggleHidden(); return true; },
+  'acct-menu': () => { acctOpen = !acctOpen; return true; },
+  'acct-go': el => { acctOpen = false; go(el.dataset.to); return true; },
+  'acct-out': async () => { acctOpen = false; await app.adapter.signOut(); location.reload(); },
   logout: async () => { await app.adapter.signOut(); location.reload(); },
   more: () => {
     const nav = app.env === 'inv' ? INV_NAV : FIN_NAV, other = app.env === 'inv' ? 'fin' : 'inv';
@@ -109,6 +111,7 @@ const GLOBAL = {
 
 function onClick(e) {
   if (e.target.closest('.modal')) return;
+  if (acctOpen && !e.target.closest('.acct')) { acctOpen = false; scheduleRender(); }
   const el = e.target.closest('[data-act]'); if (!el) return;
   const act = el.dataset.act; const c = getCtx();
   const fn = (view?.actions && view.actions[act]) || GLOBAL[act];
@@ -120,6 +123,7 @@ function onClick(e) {
 function onInput(e) { if (e.target.closest('.modal')) return; const r = view?.onInput?.(e, getCtx()); if (r === true) scheduleRender(); }
 function onChange(e) { if (e.target.closest('.modal')) return; const r = view?.onChange?.(e, getCtx()); if (r === true) scheduleRender(); }
 function onKey(e) {
+  if (e.key === 'Escape' && acctOpen) { acctOpen = false; scheduleRender(); }
   const t = e.target, typing = t.matches?.('input, textarea, select, [contenteditable]') || document.querySelector('.modal');
   if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === 'n') { e.preventDefault(); app.env === 'inv' ? buyForm() : txForm(); }
@@ -129,7 +133,7 @@ function onKey(e) {
 // ----------------------------------------------------------------------------------- boot
 async function startApp(adapter) {
   app.adapter = adapter; app.cloud = adapter.mode === 'cloud'; app.user = await adapter.user();
-  edge.call = app.cloud ? async body => { const { data, error } = await adapter.sb.functions.invoke('mercado', { body }); if (error) throw new Error(error.message || 'falha na função'); if (data?.error) throw new Error(data.error); return data; } : null;
+  edge.call = app.cloud ? async body => { const { data, error } = await adapter.sb.functions.invoke('mercado', { body }); if (error) { const st = error.context?.status, er = new Error(error.message || 'falha na função'); if (st === 400) er.badRequest = true; throw er; } if (data?.error) throw new Error(data.error); return data; } : null;
   const root = document.getElementById('root');
   root.innerHTML = '<div class="app"><aside class="side" id="side"></aside><div class="main"><div class="mtop" id="mtop"></div><main class="page" id="view" tabindex="-1" aria-live="polite"></main></div></div><nav class="tabbar" id="tabbar" aria-label="Navegação"></nav>';
   store.onError = e => toast('Não foi possível salvar: ' + e.message, { kind: 'error', ms: 6000 });

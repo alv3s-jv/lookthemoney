@@ -29,7 +29,7 @@ function live(key, price, html) {
 const chgPill = v => (v == null ? '<span class="muted">—</span>' : `<span class="pill ${cls(v)}">${arrow(v)} ${pc(v)}</span>`);
 
 function card(label, key, value, chg, extra = '', sub = '') {
-  return `<div class="kpi mk-card"><div class="kpi-l">${label}</div><div class="kpi-v num">${value == null ? '<span class="sk"></span>' : live(key, value.raw, value.html)}</div><div class="kpi-s">${chg == null ? '' : chgPill(chg)}${sub ? ` <span class="muted">${sub}</span>` : ''}</div>${extra}</div>`;
+  return `<div class="kpi mk-card ${chg == null ? '' : chg >= 0 ? 't-up' : 't-dn'}"><div class="kpi-l">${label}</div><div class="kpi-v num">${value == null ? '<span class="sk"></span>' : live(key, value.raw, value.html)}</div><div class="kpi-s">${chg == null ? '' : chgPill(chg)}${sub ? ` <span class="muted">${sub}</span>` : ''}</div>${extra}</div>`;
 }
 const rangeBar = (v, lo, hi) => (lo && hi ? `<div class="rng" title="Faixa do dia: ${nf(lo, 4)} – ${nf(hi, 4)}"><i style="left:${(rangePos(v, lo, hi) * 100).toFixed(1)}%"></i></div><div class="rng-l"><span>${nf(lo, hi > 100 ? 0 : 4)}</span><span>${nf(hi, hi > 100 ? 0 : 4)}</span></div>` : '');
 

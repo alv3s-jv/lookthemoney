@@ -427,4 +427,40 @@ body { background-image: radial-gradient(900px 520px at 88% -8%, color-mix(in sr
 .confetti i { position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; animation: confall 2.4s ease-in forwards; }
 @keyframes confall { to { transform: translate(var(--dx), 105vh) rotate(var(--r)); opacity: .9; } }
 @media (max-width: 767px) { .hero-card { grid-template-columns: 1fr; padding: 18px; } .hero-v { font-size: 36px; } .insight { max-width: 280px; } }
-details.how { margin-top: 10px; color: var(--color-neutral-400); font-size: 12.5px; } details.how summary { cursor: pointer; width: fit-content; list-style: none; display: inline-flex; gap: 6px; align-items: center; } details.how summary::before { content: '\e3ae'; font-family: 'Phosphor'; } details.how summary:hover { color: var(--color-accent-300); }
+details.how { margin-top: 10px; color: var(--color-neutral-400); font-size: 12.5px; } details.how summary { cursor: pointer; width: fit-content; list-style: none; display: inline-flex; gap: 6px; align-items: center; } details.how summary::before { content: '\e13a'; font-family: 'Phosphor'; } details.how summary:hover { color: var(--color-accent-300); }
+
+
+/* ------------------------------------------------------------ menu da conta, "ocultar valores" discreto */
+.acct { position: relative; }
+.me { width: 100%; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; border-radius: 10px; transition: background .15s ease; font: inherit; }
+.me:hover, .me.on { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.me-t { flex: 1; } .me-c { color: var(--color-neutral-400); font-size: 13px; }
+.acct-menu { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); padding: 6px; border-radius: 12px; display: flex; flex-direction: column; gap: 2px; background: var(--color-surface); border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent); box-shadow: 0 16px 40px -12px rgba(0,0,0,.6); animation: pop .15s ease both; z-index: 20; }
+.acct-menu .navitem { width: 100%; }
+.hide-pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--color-neutral-400); font-size: 11.5px; cursor: pointer; transition: color .15s ease, border-color .15s ease; }
+.hide-pill:hover { color: var(--color-text); border-color: color-mix(in srgb, var(--color-accent) 40%, transparent); }
+.hide-pill i { font-size: 14px; }
+@media (min-width: 768px) {
+  .mtop { display: flex; justify-content: flex-end; padding: 10px 28px 0; margin-bottom: -14px; position: relative; z-index: 3; }
+  .mtop .envsw { display: none; }
+}
+@media (max-width: 767px) { .hide-pill span { display: none; } .hide-pill { width: 34px; height: 34px; padding: 0; justify-content: center; } }
+
+/* ------------------------------------------------------------ Mercado e Preço-teto */
+.mk-card { position: relative; overflow: hidden; }
+.mk-card.t-up { background-image: radial-gradient(180px 90px at 100% 0, color-mix(in srgb, var(--up) 20%, transparent), transparent 70%); }
+.mk-card.t-dn { background-image: radial-gradient(180px 90px at 100% 0, color-mix(in srgb, var(--dn) 20%, transparent), transparent 70%); }
+.mk-card .kpi-v { font-size: 26px; }
+.rng { height: 5px; border-radius: 99px; margin-top: 10px; background: linear-gradient(90deg, color-mix(in srgb, var(--dn) 45%, transparent), color-mix(in srgb, var(--color-text) 10%, transparent) 50%, color-mix(in srgb, var(--up) 45%, transparent)); }
+.mk-t tbody tr { transition: background .15s ease; } .mk-t tbody tr:hover { background: color-mix(in srgb, var(--color-accent) 7%, transparent); }
+.mk-t tbody tr:nth-child(-n+3) td:first-child b, .mk-t tbody tr:nth-child(-n+3) td:first-child { color: var(--c-rf); }
+.pill.up, .pill.st-compra { box-shadow: 0 0 14px -4px var(--up); } .pill.dn, .pill.st-caro, .pill.st-esticado { box-shadow: 0 0 14px -4px var(--dn); }
+.tri.buy { background-image: radial-gradient(520px 220px at 0 0, color-mix(in srgb, var(--up) 14%, transparent), transparent 70%), linear-gradient(180deg, color-mix(in srgb, var(--color-text) 3.5%, transparent), transparent 55%); box-shadow: 0 14px 44px -22px var(--up); }
+.tri .tk { font-size: 38px !important; letter-spacing: -0.02em; }
+.tri-g { padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--color-bg) 50%, transparent); border: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent); }
+.tri-g b { font-size: 20px !important; }
+.vr { height: 9px; } .vr .zone { background: linear-gradient(90deg, color-mix(in srgb, var(--up) 20%, transparent), color-mix(in srgb, var(--up) 55%, transparent)); box-shadow: 0 0 14px color-mix(in srgb, var(--up) 40%, transparent); }
+.mkr { top: -5px; height: 19px; } .mkr.px { top: -7px; height: 23px; box-shadow: 0 0 10px var(--color-text); }
+.why { list-style: none; padding-left: 0; display: grid; gap: 6px; }
+.why li { position: relative; padding: 8px 12px 8px 34px; margin: 0; border-radius: 10px; background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+.why li::before { content: '\e182'; font-family: 'Phosphor'; position: absolute; left: 11px; top: 8px; color: var(--c-etf); font-size: 15px; }
