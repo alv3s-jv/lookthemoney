@@ -38,7 +38,7 @@ const cached = async <T>(k: string, ttl: number, f: () => Promise<T>): Promise<T
   const v = await f(); cache.set(k, { at: Date.now(), v }); return v;
 };
 
-const ysym = (t: string) => (t.startsWith('^') ? t : `${t}.SA`);
+const ysym = (t: string) => (t.startsWith('^') ? t : /\d/.test(t) ? `${t}.SA` : t); // B3 sempre tem número (PETR4 → PETR4.SA); EUA sem número (JEPQ) vai direto
 async function yget(url: string, headers: Record<string, string> = {}) {
   const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json,*/*', ...headers }, signal: AbortSignal.timeout(12000) });
   if (!r.ok) throw new Error('Yahoo HTTP ' + r.status);
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'use POST' }, 405);
   try {
     const b = await req.json().catch(() => ({}));
-    const valid = (s: unknown) => typeof s === 'string' && /^(\^[A-Z]{3,6}|[A-Z]{4}\d{1,2})$/.test(s);
+    const valid = (s: unknown) => typeof s === 'string' && /^(\^[A-Z]{3,6}|[A-Z]{4}\d{1,2}|[A-Z]{1,5})$/.test(s);
 
     if (b.history) {
       if (!valid(b.history)) return json({ error: 'ticker inválido' }, 400);

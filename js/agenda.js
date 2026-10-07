@@ -6,7 +6,7 @@ import { position } from './calc.js';
 export const AGENDA_DATE = '2026-10-06';
 export const AGENDA_STALE_DAYS = 45;
 
-/** tipo: DIVIDENDO (isento) | JCP (IR 15% na fonte). ps = valor bruto por ação. */
+/** tipo: DIVIDENDO (isento) | JCP (IR 15% na fonte). ps = valor bruto por ação. ir = alíquota própria, se diferente (ex.: 30% nos EUA). */
 export const AGENDA = [
   { t: 'PETR4', type: 'JCP', ps: 0.67407131, com: '2026-08-21', pay: '2026-11-23', note: '1ª parcela (100% JCP). Antecipação dos proventos de 2026, aprovada em 06/08.', url: 'https://bpmoney.com.br/mercado/petrobras-petr4-aprova-r-174-bilhoes-em-dividendos-e-jcp-veja-datas-de-pagamento/' },
   { t: 'PETR4', type: 'DIVIDENDO', ps: 0.47156696, com: '2026-08-21', pay: '2026-12-21', note: '2ª parcela (parte em dividendos).', url: 'https://bpmoney.com.br/mercado/petrobras-petr4-aprova-r-174-bilhoes-em-dividendos-e-jcp-veja-datas-de-pagamento/' },
@@ -28,7 +28,7 @@ export const AGENDA = [
   { t: 'ITUB4', type: 'JCP', ps: 0.01765, com: '2026-06-30', pay: '2026-08-03', note: 'Já pago (JCP mensal).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
   { t: 'ITUB4', type: 'JCP', ps: 0.01765, com: '2026-07-31', pay: '2026-09-01', note: 'Já pago (JCP mensal).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
   { t: 'ITUB4', type: 'JCP', ps: 0.01765, com: '2026-08-31', pay: '2026-10-01', note: 'Já pago (JCP mensal).', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
-  { t: 'JEPQ', type: 'DIVIDENDO', ps: 2.89, com: '2026-09-30', pay: '2026-10-05', note: 'Já pago (ETF internacional; valor por cota já em R$). Retido na fonte nos EUA.', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
+  { t: 'JEPQ', type: 'DIVIDENDO', ir: 0.30, ps: 2.89, com: '2026-09-30', pay: '2026-10-05', note: 'Já pago (ETF internacional; valor por cota já em R$). Retido na fonte nos EUA.', url: 'https://investidor10.com.br/wallet (carteira do usuário, conferido em 06/10/2026)' },
 ];
 
 export const staleDays = (today = new Date()) => Math.floor((today - new Date(AGENDA_DATE + 'T12:00:00')) / 86400000);
@@ -43,7 +43,7 @@ export function agendaFor(assets, investTx, dividends = [], today) {
     for (const x of items) {
       const qty = position(txs, x.com).qty;
       if (!(qty > 0)) continue;
-      const gross = qty * x.ps, net = x.type === 'JCP' ? gross * 0.85 : gross;
+      const gross = qty * x.ps, net = x.ir != null ? gross * (1 - x.ir) : x.type === 'JCP' ? gross * 0.85 : gross;
       const logged = dividends.some(d => d.assetId === a.id && Math.abs(Date.parse(d.payDate) - Date.parse(x.pay)) <= 4 * 864e5 && d.type === x.type);
       out.push({ ...x, assetId: a.id, qty, gross, net, paid: x.pay <= today, logged });
     }

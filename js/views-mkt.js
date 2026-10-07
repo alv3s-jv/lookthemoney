@@ -1,7 +1,7 @@
 // Tela "Mercado": painel estilo homebroker com dados do dia (ao vivo), mapa de calor, rankings e análise automática.
 import { app, brapiToken } from './app.js';
 import { edgeOn } from './feed.js';
-import { esc } from './ui.js';
+import { esc, qtyFmt } from './ui.js';
 import { nf } from './util.js';
 import { head } from './views-fin.js';
 import { NAMES } from './reco.js';
@@ -102,9 +102,14 @@ function analysisPanel(d) {
 }
 
 function myDay(c) {
-  const P = c.portfolio, hs = (P?.active || []).filter(h => h.prevClose && h.price != null).sort((a, b) => b.dayPct - a.dayPct);
-  if (!hs.length) return `<div class="panel"><div class="panel-h"><h3>Minha carteira hoje</h3></div><div class="empty"><p>Sem posições com cotação do dia. ${c.assets?.length ? 'Atualize as cotações.' : 'Registre uma compra para acompanhar aqui.'}</p></div></div>`;
-  return `<div class="panel"><div class="panel-h"><h3>Minha carteira hoje</h3><span class="sub">${P.dayValue >= 0 ? '+' : '−'}R$ ${nf(Math.abs(P.dayValue))} · ${pc(P.dayPct * 100)}</span></div><table class="table mk-t"><tbody>${hs.slice(0, 8).map(h => `<tr class="clk" data-act="open-asset" data-t="${esc(h.asset.ticker)}"><td><b>${esc(h.asset.ticker)}</b></td><td class="r num">${live('h' + h.asset.ticker, h.price, nf(h.price))}</td><td class="r"><span class="pill ${cls(h.dayPct)}">${arrow(h.dayPct)} ${pc(h.dayPct * 100)}</span></td></tr>`).join('')}</tbody></table></div>`;
+  const P = c.portfolio;
+  const all = (P?.active || []).filter(h => h.asset.assetClass === 'ACAO_BR').sort((a, b) => b.value - a.value);
+  if (!all.length) return `<div class="panel"><div class="panel-h"><h3>Minha carteira hoje</h3></div><div class="empty"><p>${c.assets?.length ? 'Nenhuma ação BR na carteira.' : 'Registre uma compra para acompanhar aqui.'}</p></div></div>`;
+  const tot = all.reduce((s, h) => s + h.value, 0), day = all.reduce((s, h) => s + (h.dayValue || 0), 0), cost = all.reduce((s, h) => s + h.cost, 0);
+  const dp = tot - day > 0 ? day / (tot - day) : 0;
+  const miss = all.filter(h => h.noQuote).length;
+  const row = h => `<tr class="clk" data-act="open-asset" data-t="${esc(h.asset.ticker)}"><td><b>${esc(h.asset.ticker)}</b><div class="sub-s">${esc(h.asset.name && h.asset.name !== h.asset.ticker ? h.asset.name : '')} · ${qtyFmt(h.pos.qty)} un.</div></td><td class="r num">${h.price != null ? live('h' + h.asset.ticker, h.price, nf(h.price)) : '<span class="muted">sem cotação</span>'}<div class="sub-s">R$ ${nf(h.value)}</div></td><td class="r">${h.prevClose && h.price != null ? `<span class="pill ${cls(h.dayPct)}">${arrow(h.dayPct)} ${pc(h.dayPct * 100)}</span>` : '<span class="muted">—</span>'}<div class="sub-s ${h.res >= 0 ? 'up' : 'dn'}">${h.noQuote ? '' : pc(h.resPct * 100) + ' total'}</div></td></tr>`;
+  return `<div class="panel"><div class="panel-h"><h3>Minhas ações BR (${all.length})</h3><span class="sub">Hoje ${day >= 0 ? '+' : '−'}R$ ${nf(Math.abs(day))} · ${pc(dp * 100)}</span></div>${miss ? `<div class="notice warn" style="margin:0 0 8px"><i class="ph ph-warning"></i><span>${miss} sem cotação: valorizadas pelo custo até a fonte de cotações responder.</span></div>` : ''}<table class="table mk-t"><tbody>${all.map(row).join('')}</tbody></table><div class="hint" style="margin-top:8px">Total: R$ ${nf(tot)} · resultado ${pc((cost > 0 ? (tot - cost) / cost : 0) * 100)}</div></div>`;
 }
 
 const houseChip = h => `<span class="hchip ${h.partial ? 'part' : ''}" title="${esc(h.short)}${h.w != null ? ' · ' + h.w + '%' : h.partial ? ' · aumento de posição (composição restrita)' : ''}">${esc(h.short)}</span>`;
